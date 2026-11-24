@@ -50,7 +50,7 @@ class IncomingFiles(
             executor.execute {
                 try {
                     val file = copyUriToCache(request.uri, request.mimeType)
-                    val payload = mapOf("path" to file.absolutePath, "name" to file.name)
+                    val payload = buildPayload(file, request.uri)
                     mainHandler.post {
                         if (!disposed) result.success(payload)
                     }
@@ -73,7 +73,7 @@ class IncomingFiles(
         executor.execute {
             try {
                 val file = copyUriToCache(request.uri, request.mimeType)
-                val payload = mapOf("path" to file.absolutePath, "name" to file.name)
+                val payload = buildPayload(file, request.uri)
                 mainHandler.post {
                     if (!disposed) channel.invokeMethod("onFile", payload)
                 }
@@ -96,6 +96,12 @@ class IncomingFiles(
     }
 
     private data class IncomingRequest(val uri: Uri, val mimeType: String?)
+
+    private fun buildPayload(file: File, uri: Uri): Map<String, String> = mapOf(
+        "path" to file.absolutePath,
+        "name" to file.name,
+        "uri" to uri.toString(),
+    )
 
     private fun extractRequest(intent: Intent): IncomingRequest? {
         val uri: Uri? = when (intent.action) {

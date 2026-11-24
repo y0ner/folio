@@ -15,6 +15,7 @@ class DocumentRef {
     required this.kind,
     required this.sizeBytes,
     required this.openedAt,
+    this.source,
   });
 
   final String path;
@@ -27,12 +28,16 @@ class DocumentRef {
   /// Última vez que se abrió.
   final DateTime openedAt;
 
-  DocumentRef copyWith({DateTime? openedAt}) => DocumentRef(
+  /// URI original del documento (`content://…` o `file://…`), si se conoce.
+  final String? source;
+
+  DocumentRef copyWith({DateTime? openedAt, String? source}) => DocumentRef(
         path: path,
         name: name,
         kind: kind,
         sizeBytes: sizeBytes,
         openedAt: openedAt ?? this.openedAt,
+        source: source ?? this.source,
       );
 
   Map<String, Object> toJson() => {
@@ -41,6 +46,7 @@ class DocumentRef {
         'kind': kind.name,
         'size': sizeBytes,
         'openedAt': openedAt.millisecondsSinceEpoch,
+        'source': ?source,
       };
 
   /// Devuelve `null` si el JSON está incompleto o el tipo ya no existe.
@@ -57,12 +63,16 @@ class DocumentRef {
         openedAt is! int) {
       return null;
     }
+    final rawSource = json['source'];
+    final source =
+        rawSource is String && rawSource.isNotEmpty ? rawSource : null;
     return DocumentRef(
       path: path,
       name: name,
       kind: kind,
       sizeBytes: size,
       openedAt: DateTime.fromMillisecondsSinceEpoch(openedAt),
+      source: source,
     );
   }
 

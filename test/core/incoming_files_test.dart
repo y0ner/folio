@@ -27,6 +27,30 @@ void main() {
       );
     });
 
+    test('construye con uri opcional cuando viene en el mapa', () {
+      final file = IncomingFile.fromMap({
+        'path': '/cache/incoming/carta.docx',
+        'name': 'carta.docx',
+        'uri': 'content://com.whatsapp.provider.media/item/1',
+      });
+      expect(
+        file,
+        const IncomingFile(
+          path: '/cache/incoming/carta.docx',
+          name: 'carta.docx',
+          uri: 'content://com.whatsapp.provider.media/item/1',
+        ),
+      );
+      expect(
+        IncomingFile.fromMap({
+          'path': '/cache/incoming/carta.docx',
+          'name': 'carta.docx',
+          'uri': '',
+        })?.uri,
+        isNull,
+      );
+    });
+
     test('devuelve null con mapas incompletos o inválidos', () {
       expect(IncomingFile.fromMap(null), isNull);
       expect(IncomingFile.fromMap({}), isNull);

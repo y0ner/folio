@@ -49,11 +49,20 @@ class FileIntake {
       allowedExtensions: DocKind.allExtensions.toList(),
     );
     if (file == null || file.path == null) return const IntakeCancelled();
-    return importFile(File(file.path!), name: file.name);
+    final rawUri = file.uri.toString();
+    return importFile(
+      File(file.path!),
+      name: file.name,
+      sourceUri: rawUri.isEmpty ? null : rawUri,
+    );
   }
 
   /// Copia [source] a la carpeta de documentos y devuelve su referencia.
-  Future<IntakeResult> importFile(File source, {required String name}) async {
+  Future<IntakeResult> importFile(
+    File source, {
+    required String name,
+    String? sourceUri,
+  }) async {
     final kind = DocKind.fromName(name);
     if (kind == null) return IntakeUnsupported(name);
     final dir = await documentsDir();
@@ -66,6 +75,7 @@ class FileIntake {
       kind: kind,
       sizeBytes: await target.length(),
       openedAt: DateTime.now(),
+      source: sourceUri != null && sourceUri.isNotEmpty ? sourceUri : null,
     ));
   }
 
