@@ -1,0 +1,11 @@
+name: flutter_inappwebview_linux
+description: >-
+  Sustituto vacío de flutter_inappwebview_linux. La implementación real necesita
+  WPE WebKit, que no existe en los repositorios de Linux Mint 22. Sin ella,
+  `./run.sh linux` compila: en escritorio Word, Excel y PowerPoint muestran
+  "Formato no compatible" y el resto de la app funciona.
+version: 0.1.0-beta.1
+publish_to: none
+
+environment:
+  sdk: ^3.5.0

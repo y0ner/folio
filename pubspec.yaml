@@ -119,3 +119,9 @@ flutter:
   #
   # For details regarding fonts from package dependencies,
   # see https://flutter.dev/to/font-from-package
+
+# El WebView de Linux necesita WPE WebKit (no está en Linux Mint 22): se
+# reemplaza por un paquete vacío para que `./run.sh linux` compile.
+dependency_overrides:
+  flutter_inappwebview_linux:
+    path: packages/inappwebview_linux_stub

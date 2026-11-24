@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'dart:io';
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_inappwebview/flutter_inappwebview.dart';
 import 'package:path/path.dart' as p;
@@ -43,7 +44,11 @@ class _OfficeDocumentViewState extends State<OfficeDocumentView> {
   @override
   void initState() {
     super.initState();
-    _engine = OfficeEngine.forKind(widget.document.kind);
+    // Los motores web solo existen en Android (en Linux el WebView es un
+    // sustituto vacío: ver packages/inappwebview_linux_stub).
+    _engine = defaultTargetPlatform == TargetPlatform.android
+        ? OfficeEngine.forKind(widget.document.kind)
+        : null;
     if (_engine == null) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (!mounted) return;
