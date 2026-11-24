@@ -55,8 +55,8 @@ Pattern buildPdfSearchPattern(String query) {
   final buffer = StringBuffer();
   for (final rune in stripped.runes) {
     final ch = String.fromCharCode(rune);
-    final base = _diacriticToBase[ch.toLowerCase()];
-    final group = base != null ? _accentGroups[base] : null;
+    final lower = ch.toLowerCase();
+    final group = _accentGroups[_diacriticToBase[lower] ?? lower];
     if (group != null) {
       buffer.write(group);
       buffer.write(r'[\u0300-\u036f]*');

@@ -87,7 +87,8 @@ class _ViewerScreenState extends State<ViewerScreen> {
       _loadingTimer = null;
       _showLoading = false;
     }
-    if (_controller.status != ViewerStatus.ready || _controller.search == null) {
+    if (_controller.status != ViewerStatus.ready ||
+        _controller.search == null) {
       _searchOpen = false;
     }
     _syncSystemUiMode();
@@ -149,7 +150,8 @@ class _ViewerScreenState extends State<ViewerScreen> {
   }
 
   void _openSearch() {
-    if (_controller.status != ViewerStatus.ready || _controller.search == null) {
+    if (_controller.status != ViewerStatus.ready ||
+        _controller.search == null) {
       return;
     }
     setState(() {
@@ -191,10 +193,8 @@ class _ViewerScreenState extends State<ViewerScreen> {
     await showModalBottomSheet<void>(
       context: context,
       isScrollControlled: true,
-      builder: (_) => DocumentInfoSheet(
-        document: widget.document,
-        pageCount: pageCount,
-      ),
+      builder: (_) =>
+          DocumentInfoSheet(document: widget.document, pageCount: pageCount),
     );
   }
 
@@ -212,15 +212,15 @@ class _ViewerScreenState extends State<ViewerScreen> {
     final doc = widget.document;
     return switch (doc.kind) {
       DocKind.pdf => PdfDocumentView(
-          document: doc,
-          controller: _controller,
-          onTap: _toggleChrome,
-        ),
+        document: doc,
+        controller: _controller,
+        onTap: _toggleChrome,
+      ),
       _ => OfficeDocumentView(
-          document: doc,
-          controller: _controller,
-          onTap: _toggleChrome,
-        ),
+        document: doc,
+        controller: _controller,
+        onTap: _toggleChrome,
+      ),
     };
   }
 
@@ -245,106 +245,114 @@ class _ViewerScreenState extends State<ViewerScreen> {
             status == ViewerStatus.failed &&
             failure?.kind == ViewerFailureKind.missing;
 
-        return Scaffold(
-          backgroundColor: folio.canvas,
-          extendBodyBehindAppBar: true,
-          body: Stack(
-            children: [
-              if (_fileExists) Positioned.fill(child: _buildDocumentBody()),
-              if (status == ViewerStatus.loading && _showLoading)
-                Positioned.fill(
-                  child: IgnorePointer(
-                    child: Center(
-                      child: Column(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          const SizedBox(
-                            width: 24,
-                            height: 24,
-                            child: CircularProgressIndicator(strokeWidth: 2),
-                          ),
-                          const SizedBox(height: FolioTokens.s12),
-                          Text(
-                            'Abriendo documento…',
-                            style: textTheme.bodyMedium,
-                          ),
-                        ],
-                      ),
-                    ),
-                  ),
-                ),
-              if (status == ViewerStatus.failed)
-                Positioned.fill(
-                  child: ViewerErrorView(
-                    failure: failure ??
-                        const ViewerFailure(ViewerFailureKind.engine),
-                    onShare: _shareDocument,
-                    onBack: () => Navigator.of(context).maybePop(),
-                  ),
-                ),
-              if (hasPageIndicator)
-                Positioned(
-                  left: 0,
-                  right: 0,
-                  bottom: FolioTokens.s16,
-                  child: SafeArea(
-                    top: false,
-                    child: Center(
-                      child: _ChromeOverlay(
-                        visible: showBars,
-                        hiddenOffset: const Offset(0, 1.5),
-                        child: PageIndicator(
-                          currentPage: _controller.currentPage,
-                          pageCount: _controller.pageCount,
-                          onTap: () =>
-                              _openGoToPageDialog(_controller.pageCount),
+        return PopScope(
+          // Con la búsqueda abierta, "atrás" la cierra en vez de salir.
+          canPop: !_isSearchActive,
+          onPopInvokedWithResult: (didPop, _) {
+            if (didPop) return;
+            _controller.search?.clear();
+            _closeSearch();
+          },
+          child: Scaffold(
+            backgroundColor: folio.canvas,
+            extendBodyBehindAppBar: true,
+            body: Stack(
+              children: [
+                if (_fileExists) Positioned.fill(child: _buildDocumentBody()),
+                if (status == ViewerStatus.loading && _showLoading)
+                  Positioned.fill(
+                    child: IgnorePointer(
+                      child: Center(
+                        child: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            const SizedBox(
+                              width: 24,
+                              height: 24,
+                              child: CircularProgressIndicator(strokeWidth: 2),
+                            ),
+                            const SizedBox(height: FolioTokens.s12),
+                            Text(
+                              'Abriendo documento…',
+                              style: textTheme.bodyMedium,
+                            ),
+                          ],
                         ),
                       ),
                     ),
                   ),
-                ),
-              if (hasSections)
+                if (status == ViewerStatus.failed)
+                  Positioned.fill(
+                    child: ViewerErrorView(
+                      failure:
+                          failure ??
+                          const ViewerFailure(ViewerFailureKind.engine),
+                      onShare: _shareDocument,
+                      onBack: () => Navigator.of(context).maybePop(),
+                    ),
+                  ),
+                if (hasPageIndicator)
+                  Positioned(
+                    left: 0,
+                    right: 0,
+                    bottom: FolioTokens.s16,
+                    child: SafeArea(
+                      top: false,
+                      child: Center(
+                        child: _ChromeOverlay(
+                          visible: showBars,
+                          hiddenOffset: const Offset(0, 1.5),
+                          child: PageIndicator(
+                            currentPage: _controller.currentPage,
+                            pageCount: _controller.pageCount,
+                            onTap: () =>
+                                _openGoToPageDialog(_controller.pageCount),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                if (hasSections)
+                  Positioned(
+                    left: 0,
+                    right: 0,
+                    bottom: 0,
+                    child: _ChromeOverlay(
+                      visible: showBars,
+                      hiddenOffset: const Offset(0, 1),
+                      child: SectionBar(
+                        sections: _controller.sections,
+                        currentSection: _controller.currentSection,
+                        onSelectSection: _controller.selectSection,
+                      ),
+                    ),
+                  ),
                 Positioned(
+                  top: 0,
                   left: 0,
                   right: 0,
-                  bottom: 0,
                   child: _ChromeOverlay(
                     visible: showBars,
-                    hiddenOffset: const Offset(0, 1),
-                    child: SectionBar(
-                      sections: _controller.sections,
-                      currentSection: _controller.currentSection,
-                      onSelectSection: _controller.selectSection,
-                    ),
+                    hiddenOffset: const Offset(0, -1),
+                    child: searchActive
+                        ? ViewerSearchBar(search: search, onClose: _closeSearch)
+                        : ViewerTopBar(
+                            document: widget.document,
+                            canGoToPage: isReady && _controller.pageCount > 1,
+                            onBack: () => Navigator.of(context).maybePop(),
+                            onShare: isMissing ? null : _shareDocument,
+                            onShowInfo: () =>
+                                _openDocumentInfo(_controller.pageCount),
+                            onGoToPage: () =>
+                                _openGoToPageDialog(_controller.pageCount),
+                            onSearch: isReady && search != null
+                                ? _openSearch
+                                : null,
+                          ),
                   ),
                 ),
-              Positioned(
-                top: 0,
-                left: 0,
-                right: 0,
-                child: _ChromeOverlay(
-                  visible: showBars,
-                  hiddenOffset: const Offset(0, -1),
-                  child: searchActive
-                      ? ViewerSearchBar(
-                          search: search,
-                          onClose: _closeSearch,
-                        )
-                      : ViewerTopBar(
-                          document: widget.document,
-                          canGoToPage: isReady && _controller.pageCount > 1,
-                          onBack: () => Navigator.of(context).maybePop(),
-                          onShare: isMissing ? null : _shareDocument,
-                          onShowInfo: () =>
-                              _openDocumentInfo(_controller.pageCount),
-                          onGoToPage: () =>
-                              _openGoToPageDialog(_controller.pageCount),
-                          onSearch:
-                              isReady && search != null ? _openSearch : null,
-                        ),
-                ),
-              ),
-            ],
+              ],
+            ),
           ),
         );
       },
@@ -373,10 +381,7 @@ class _ChromeOverlay extends StatelessWidget {
         opacity: visible ? 1 : 0,
         duration: FolioTokens.normal,
         curve: FolioTokens.curve,
-        child: IgnorePointer(
-          ignoring: !visible,
-          child: child,
-        ),
+        child: IgnorePointer(ignoring: !visible, child: child),
       ),
     );
   }
