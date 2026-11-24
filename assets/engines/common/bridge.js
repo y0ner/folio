@@ -52,7 +52,10 @@
     );
   }
 
-  async function loadDocument(url) {
+  // options.allowOle: el formato admite archivos OLE legítimos (p. ej. .xls
+  // antiguo); entonces la cabecera OLE no se trata como cifrado.
+  async function loadDocument(url, options) {
+    const allowOle = Boolean(options && options.allowOle);
     let response;
     try {
       response = await fetch(url);
@@ -71,7 +74,7 @@
     }
 
     const buffer = await response.arrayBuffer();
-    if (hasOleHeader(buffer)) {
+    if (!allowOle && hasOleHeader(buffer)) {
       const detail = 'Documento protegido con contraseña (OLE)';
       send({ type: 'error', kind: 'encrypted', detail });
       const error = new Error(detail);
