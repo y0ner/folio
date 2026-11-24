@@ -54,4 +54,30 @@ void main() {
     await store.remove(doc('a.pdf'));
     expect(store.items, isEmpty);
   });
+
+  test('el mismo archivo abierto dos veces no se duplica', () async {
+    final store = RecentStore(await prefs());
+    final first = DocumentRef(
+      path: '/docs/1_carta.docx', name: 'carta.docx', kind: DocKind.word,
+      sizeBytes: 14000, openedAt: DateTime(2026), source: 'content://x/1',
+    );
+    final again = DocumentRef(
+      path: '/docs/2_carta.docx', name: 'carta.docx', kind: DocKind.word,
+      sizeBytes: 14000, openedAt: DateTime(2026, 2), source: 'content://x/1',
+    );
+    await store.add(first);
+    final evicted = await store.add(again);
+    expect(store.items.single.path, '/docs/2_carta.docx');
+    expect(evicted.single.path, '/docs/1_carta.docx');
+  });
+
+  test('sin origen, distingue por nombre, tipo y tamaño', () async {
+    final store = RecentStore(await prefs());
+    await store.add(doc('a.pdf'));
+    await store.add(DocumentRef(
+      path: '/otra/a.pdf', name: 'a.pdf', kind: DocKind.pdf,
+      sizeBytes: 999, openedAt: DateTime(2026),
+    ));
+    expect(store.items.length, 2);
+  });
 }
