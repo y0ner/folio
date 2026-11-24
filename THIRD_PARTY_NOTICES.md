@@ -5,6 +5,7 @@
 | Inter | 4.1 | SIL OFL 1.1 | `assets/fonts/` |
 | Carlito | Google Fonts | SIL OFL 1.1 | `assets/engines/fonts/` |
 | Caladea | Google Fonts | SIL OFL 1.1 | `assets/engines/fonts/` |
+| Liberation Sans / Serif | 2.1.5 | SIL OFL 1.1 | `assets/engines/fonts/` |
 | docx-preview | 0.4.1 | Apache-2.0 | `assets/engines/vendor/docx-preview.min.js` |
 | JSZip | 3.10.1 | MIT (se elige MIT de su licencia dual MIT/GPLv3) | `assets/engines/vendor/jszip.min.js` |
 | SheetJS Community Edition | 0.20.3 | Apache-2.0 | `assets/engines/vendor/xlsx.full.min.js` |

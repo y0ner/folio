@@ -7,6 +7,7 @@ const List<(String assetPath, List<String> packages)> _assetLicenses = [
   ('assets/licenses/Inter-OFL.txt', ['Inter']),
   ('assets/licenses/Carlito-OFL.txt', ['Carlito']),
   ('assets/licenses/Caladea-OFL.txt', ['Caladea']),
+  ('assets/licenses/Liberation-OFL.txt', ['Liberation Fonts']),
   ('assets/licenses/docx-preview-LICENSE.txt', ['docx-preview']),
   ('assets/licenses/jszip-LICENSE.md', ['jszip']),
 ];
