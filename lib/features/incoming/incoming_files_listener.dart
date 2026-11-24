@@ -63,7 +63,11 @@ class _IncomingFilesListenerState extends State<IncomingFilesListener> {
     final scope = AppScope.of(context);
     final source = File(incoming.path);
     try {
-      final result = await scope.intake.importFile(source, name: incoming.name);
+      final result = await scope.intake.importFile(
+        source,
+        name: incoming.name,
+        sourceUri: incoming.uri,
+      );
       if (!mounted) return;
       switch (result) {
         case IntakeOpened(:final document):

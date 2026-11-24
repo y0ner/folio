@@ -6,10 +6,11 @@ import 'package:flutter/services.dart';
 /// Archivo recibido desde otra aplicación de Android.
 @immutable
 class IncomingFile {
-  const IncomingFile({required this.path, required this.name});
+  const IncomingFile({required this.path, required this.name, this.uri});
 
   final String path;
   final String name;
+  final String? uri;
 
   /// Crea un [IncomingFile] desde [map], o `null` si faltan `path` o `name`.
   static IncomingFile? fromMap(Map<Object?, Object?>? map) {
@@ -19,15 +20,20 @@ class IncomingFile {
     if (path is! String || path.isEmpty || name is! String || name.isEmpty) {
       return null;
     }
-    return IncomingFile(path: path, name: name);
+    final rawUri = map['uri'];
+    final uri = rawUri is String && rawUri.isNotEmpty ? rawUri : null;
+    return IncomingFile(path: path, name: name, uri: uri);
   }
 
   @override
   bool operator ==(Object other) =>
-      other is IncomingFile && other.path == path && other.name == name;
+      other is IncomingFile &&
+      other.path == path &&
+      other.name == name &&
+      other.uri == uri;
 
   @override
-  int get hashCode => Object.hash(path, name);
+  int get hashCode => Object.hash(path, name, uri);
 }
 
 /// Puente con Android para recibir archivos de "Abrir con" y "Compartir".
