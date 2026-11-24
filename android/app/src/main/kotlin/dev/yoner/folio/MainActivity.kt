@@ -22,6 +22,15 @@ class MainActivity : FlutterActivity() {
         incomingFiles?.handleNewIntent(intent)
     }
 
+    @Deprecated("Deprecated in Java")
+    override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
+        if (incomingFiles?.handleActivityResult(requestCode, resultCode, data) == true) {
+            return
+        }
+        @Suppress("DEPRECATION")
+        super.onActivityResult(requestCode, resultCode, data)
+    }
+
     override fun onDestroy() {
         incomingFiles?.dispose()
         incomingFiles = null
