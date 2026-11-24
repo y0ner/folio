@@ -9,6 +9,7 @@ import '../../../core/theme/folio_tokens.dart';
 import '../viewer_controller.dart';
 import 'pdf_password_dialog.dart';
 import 'pdf_scroll_thumb.dart';
+import 'pdf_search.dart';
 
 /// Cuerpo del visor para PDF basado en `pdfrx`.
 class PdfDocumentView extends StatefulWidget {
@@ -33,7 +34,11 @@ class _PdfDocumentViewState extends State<PdfDocumentView> {
   // PdfViewerController en pdfrx 3.0.0 no tiene dispose(); su ciclo de vida
   // lo gestiona internamente el widget PdfViewer.
   final _pdfController = PdfViewerController();
+  late final List<PdfViewerPagePaintCallback> _pagePaintCallbacks = [
+    _paintSearchMatches,
+  ];
 
+  PdfViewerSearch? _search;
   bool _passwordAttempted = false;
   bool _passwordCancelled = false;
   bool _reportedFailure = false;
@@ -45,6 +50,7 @@ class _PdfDocumentViewState extends State<PdfDocumentView> {
       _passwordAttempted = false;
       _passwordCancelled = false;
       _reportedFailure = false;
+      _search?.clear();
     }
     if (oldWidget.controller != widget.controller) {
       oldWidget.controller.attach();
@@ -57,13 +63,20 @@ class _PdfDocumentViewState extends State<PdfDocumentView> {
   @override
   void dispose() {
     widget.controller.attach();
+    _search?.dispose();
+    _search = null;
     super.dispose();
   }
 
   void _attachViewerController(PdfViewerController pdfController) {
     widget.controller.attach(
       onGoToPage: (page) => unawaited(pdfController.goToPage(pageNumber: page)),
+      search: _search,
     );
+  }
+
+  void _paintSearchMatches(Canvas canvas, Rect pageRect, PdfPage page) {
+    _search?.paintMatches(canvas, pageRect, page);
   }
 
   Future<String?> _providePassword() async {
@@ -167,6 +180,9 @@ class _PdfDocumentViewState extends State<PdfDocumentView> {
             offset: const Offset(0, 2),
           ),
           textSelectionParams: const PdfTextSelectionParams(enabled: true),
+          matchTextColor: folio.accent.withValues(alpha: 0.25),
+          activeMatchTextColor: folio.accent.withValues(alpha: 0.55),
+          pagePaintCallbacks: _pagePaintCallbacks,
           linkHandlerParams: PdfLinkHandlerParams(
             onLinkTap: _handleLinkTap,
             linkColor: Colors.transparent,
@@ -180,8 +196,10 @@ class _PdfDocumentViewState extends State<PdfDocumentView> {
               const SizedBox.shrink(),
           onDocumentLoadFinished: _handleDocumentLoadFinished,
           onViewerReady: (document, pdfController) {
-            widget.controller.markReady(pageCount: document.pages.length);
+            _search?.dispose();
+            _search = PdfViewerSearch(pdfController);
             _attachViewerController(pdfController);
+            widget.controller.markReady(pageCount: document.pages.length);
           },
           onPageChanged: (pageNumber) {
             if (pageNumber != null) {
