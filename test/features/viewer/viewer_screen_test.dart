@@ -9,6 +9,44 @@ import 'package:folio/features/viewer/viewer_controller.dart';
 import 'package:folio/features/viewer/viewer_screen.dart';
 import 'package:folio/features/viewer/widgets/document_info_sheet.dart';
 import 'package:folio/features/viewer/widgets/page_indicator.dart';
+import 'package:folio/features/viewer/widgets/viewer_search_bar.dart';
+
+class _FakeViewerSearch extends ChangeNotifier implements ViewerSearch {
+  @override
+  String query = '';
+
+  @override
+  bool isSearching = false;
+
+  @override
+  int matchCount = 0;
+
+  @override
+  int currentIndex = -1;
+
+  int clearCalls = 0;
+
+  @override
+  void search(String q) {
+    query = q;
+    notifyListeners();
+  }
+
+  @override
+  void next() {}
+
+  @override
+  void previous() {}
+
+  @override
+  void clear() {
+    clearCalls++;
+    query = '';
+    matchCount = 0;
+    currentIndex = -1;
+    notifyListeners();
+  }
+}
 
 void main() {
   late Directory tempDir;
@@ -205,5 +243,41 @@ void main() {
     controller.markReady(pageCount: 1);
     await tester.pump();
     expect(find.text('Abriendo documento…'), findsNothing);
+  });
+
+  testWidgets('botón Buscar abre y cierra la barra de búsqueda cuando hay search',
+      (tester) async {
+    final search = _FakeViewerSearch();
+    final controller = ViewerController()..attach(search: search);
+    addTearDown(() {
+      controller.dispose();
+      search.dispose();
+    });
+
+    await tester.pumpWidget(
+      wrap(ViewerScreen(document: makeDoc(), controller: controller)),
+    );
+
+    expect(find.byTooltip('Buscar'), findsNothing);
+
+    controller.markReady(pageCount: 5);
+    await tester.pump();
+
+    expect(find.byTooltip('Buscar'), findsOneWidget);
+    expect(find.byType(ViewerSearchBar), findsNothing);
+
+    await tester.tap(find.byTooltip('Buscar'));
+    await tester.pump();
+
+    expect(find.byType(ViewerSearchBar), findsOneWidget);
+    expect(find.widgetWithText(TextField, 'Buscar en el documento'),
+        findsOneWidget);
+
+    await tester.tap(find.byTooltip('Cerrar búsqueda'));
+    await tester.pump();
+
+    expect(search.clearCalls, 1);
+    expect(find.byType(ViewerSearchBar), findsNothing);
+    expect(find.byTooltip('Buscar'), findsOneWidget);
   });
 }

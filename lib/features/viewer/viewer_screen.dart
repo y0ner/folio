@@ -17,6 +17,7 @@ import 'widgets/go_to_page_dialog.dart';
 import 'widgets/page_indicator.dart';
 import 'widgets/section_bar.dart';
 import 'widgets/viewer_error_view.dart';
+import 'widgets/viewer_search_bar.dart';
 import 'widgets/viewer_top_bar.dart';
 
 /// Pantalla del visor: barras, modo inmersivo, indicador, carga y errores
@@ -42,6 +43,7 @@ class _ViewerScreenState extends State<ViewerScreen> {
   late bool _ownsController;
   bool _fileExists = false;
   bool _barsVisible = true;
+  bool _searchOpen = false;
   bool _showLoading = false;
   bool _lastSystemUiVisible = true;
   Timer? _loadingTimer;
@@ -85,6 +87,10 @@ class _ViewerScreenState extends State<ViewerScreen> {
       _loadingTimer = null;
       _showLoading = false;
     }
+    if (_controller.status != ViewerStatus.ready ||
+        _controller.search == null) {
+      _searchOpen = false;
+    }
     _syncSystemUiMode();
   }
 
@@ -96,9 +102,11 @@ class _ViewerScreenState extends State<ViewerScreen> {
       if (_ownsController) {
         _controller.dispose();
       }
+      _searchOpen = false;
       _initController();
     }
     if (oldWidget.document.path != widget.document.path) {
+      _searchOpen = false;
       _checkFileAndStartLoading();
     }
   }
@@ -114,8 +122,15 @@ class _ViewerScreenState extends State<ViewerScreen> {
     super.dispose();
   }
 
+  bool get _isSearchActive =>
+      _searchOpen &&
+      _controller.status == ViewerStatus.ready &&
+      _controller.search != null;
+
   bool get _effectiveBarsVisible =>
-      _controller.status != ViewerStatus.ready || _barsVisible;
+      _controller.status != ViewerStatus.ready ||
+      _isSearchActive ||
+      _barsVisible;
 
   void _syncSystemUiMode() {
     final visible = _effectiveBarsVisible;
@@ -127,11 +142,28 @@ class _ViewerScreenState extends State<ViewerScreen> {
   }
 
   void _toggleChrome() {
-    if (_controller.status != ViewerStatus.ready) return;
+    if (_controller.status != ViewerStatus.ready || _isSearchActive) return;
     setState(() {
       _barsVisible = !_barsVisible;
     });
     _syncSystemUiMode();
+  }
+
+  void _openSearch() {
+    if (_controller.status != ViewerStatus.ready ||
+        _controller.search == null) {
+      return;
+    }
+    setState(() {
+      _searchOpen = true;
+      _barsVisible = true;
+    });
+    _syncSystemUiMode();
+  }
+
+  void _closeSearch() {
+    if (!mounted) return;
+    setState(() => _searchOpen = false);
   }
 
   Future<void> _shareDocument() async {
@@ -161,10 +193,8 @@ class _ViewerScreenState extends State<ViewerScreen> {
     await showModalBottomSheet<void>(
       context: context,
       isScrollControlled: true,
-      builder: (_) => DocumentInfoSheet(
-        document: widget.document,
-        pageCount: pageCount,
-      ),
+      builder: (_) =>
+          DocumentInfoSheet(document: widget.document, pageCount: pageCount),
     );
   }
 
@@ -182,15 +212,15 @@ class _ViewerScreenState extends State<ViewerScreen> {
     final doc = widget.document;
     return switch (doc.kind) {
       DocKind.pdf => PdfDocumentView(
-          document: doc,
-          controller: _controller,
-          onTap: _toggleChrome,
-        ),
+        document: doc,
+        controller: _controller,
+        onTap: _toggleChrome,
+      ),
       _ => OfficeDocumentView(
-          document: doc,
-          controller: _controller,
-          onTap: _toggleChrome,
-        ),
+        document: doc,
+        controller: _controller,
+        onTap: _toggleChrome,
+      ),
     };
   }
 
@@ -205,6 +235,8 @@ class _ViewerScreenState extends State<ViewerScreen> {
         final status = _controller.status;
         final failure = _controller.failure;
         final isReady = status == ViewerStatus.ready;
+        final search = _controller.search;
+        final searchActive = _searchOpen && isReady && search != null;
         final showBars = _effectiveBarsVisible;
         final hasSections = isReady && _controller.sections.length > 1;
         final hasPageIndicator =
@@ -213,98 +245,114 @@ class _ViewerScreenState extends State<ViewerScreen> {
             status == ViewerStatus.failed &&
             failure?.kind == ViewerFailureKind.missing;
 
-        return Scaffold(
-          backgroundColor: folio.canvas,
-          extendBodyBehindAppBar: true,
-          body: Stack(
-            children: [
-              if (_fileExists) Positioned.fill(child: _buildDocumentBody()),
-              if (status == ViewerStatus.loading && _showLoading)
-                Positioned.fill(
-                  child: IgnorePointer(
-                    child: Center(
-                      child: Column(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          const SizedBox(
-                            width: 24,
-                            height: 24,
-                            child: CircularProgressIndicator(strokeWidth: 2),
-                          ),
-                          const SizedBox(height: FolioTokens.s12),
-                          Text(
-                            'Abriendo documento…',
-                            style: textTheme.bodyMedium,
-                          ),
-                        ],
-                      ),
-                    ),
-                  ),
-                ),
-              if (status == ViewerStatus.failed)
-                Positioned.fill(
-                  child: ViewerErrorView(
-                    failure: failure ??
-                        const ViewerFailure(ViewerFailureKind.engine),
-                    onShare: _shareDocument,
-                    onBack: () => Navigator.of(context).maybePop(),
-                  ),
-                ),
-              if (hasPageIndicator)
-                Positioned(
-                  left: 0,
-                  right: 0,
-                  bottom: FolioTokens.s16,
-                  child: SafeArea(
-                    top: false,
-                    child: Center(
-                      child: _ChromeOverlay(
-                        visible: showBars,
-                        hiddenOffset: const Offset(0, 1.5),
-                        child: PageIndicator(
-                          currentPage: _controller.currentPage,
-                          pageCount: _controller.pageCount,
-                          onTap: () =>
-                              _openGoToPageDialog(_controller.pageCount),
+        return PopScope(
+          // Con la búsqueda abierta, "atrás" la cierra en vez de salir.
+          canPop: !_isSearchActive,
+          onPopInvokedWithResult: (didPop, _) {
+            if (didPop) return;
+            _controller.search?.clear();
+            _closeSearch();
+          },
+          child: Scaffold(
+            backgroundColor: folio.canvas,
+            extendBodyBehindAppBar: true,
+            body: Stack(
+              children: [
+                if (_fileExists) Positioned.fill(child: _buildDocumentBody()),
+                if (status == ViewerStatus.loading && _showLoading)
+                  Positioned.fill(
+                    child: IgnorePointer(
+                      child: Center(
+                        child: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            const SizedBox(
+                              width: 24,
+                              height: 24,
+                              child: CircularProgressIndicator(strokeWidth: 2),
+                            ),
+                            const SizedBox(height: FolioTokens.s12),
+                            Text(
+                              'Abriendo documento…',
+                              style: textTheme.bodyMedium,
+                            ),
+                          ],
                         ),
                       ),
                     ),
                   ),
-                ),
-              if (hasSections)
-                Positioned(
-                  left: 0,
-                  right: 0,
-                  bottom: 0,
-                  child: _ChromeOverlay(
-                    visible: showBars,
-                    hiddenOffset: const Offset(0, 1),
-                    child: SectionBar(
-                      sections: _controller.sections,
-                      currentSection: _controller.currentSection,
-                      onSelectSection: _controller.selectSection,
+                if (status == ViewerStatus.failed)
+                  Positioned.fill(
+                    child: ViewerErrorView(
+                      failure:
+                          failure ??
+                          const ViewerFailure(ViewerFailureKind.engine),
+                      onShare: _shareDocument,
+                      onBack: () => Navigator.of(context).maybePop(),
                     ),
                   ),
-                ),
-              Positioned(
-                top: 0,
-                left: 0,
-                right: 0,
-                child: _ChromeOverlay(
-                  visible: showBars,
-                  hiddenOffset: const Offset(0, -1),
-                  child: ViewerTopBar(
-                    document: widget.document,
-                    canGoToPage: isReady && _controller.pageCount > 1,
-                    onBack: () => Navigator.of(context).maybePop(),
-                    onShare: isMissing ? null : _shareDocument,
-                    onShowInfo: () => _openDocumentInfo(_controller.pageCount),
-                    onGoToPage: () =>
-                        _openGoToPageDialog(_controller.pageCount),
+                if (hasPageIndicator)
+                  Positioned(
+                    left: 0,
+                    right: 0,
+                    bottom: FolioTokens.s16,
+                    child: SafeArea(
+                      top: false,
+                      child: Center(
+                        child: _ChromeOverlay(
+                          visible: showBars,
+                          hiddenOffset: const Offset(0, 1.5),
+                          child: PageIndicator(
+                            currentPage: _controller.currentPage,
+                            pageCount: _controller.pageCount,
+                            onTap: () =>
+                                _openGoToPageDialog(_controller.pageCount),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                if (hasSections)
+                  Positioned(
+                    left: 0,
+                    right: 0,
+                    bottom: 0,
+                    child: _ChromeOverlay(
+                      visible: showBars,
+                      hiddenOffset: const Offset(0, 1),
+                      child: SectionBar(
+                        sections: _controller.sections,
+                        currentSection: _controller.currentSection,
+                        onSelectSection: _controller.selectSection,
+                      ),
+                    ),
+                  ),
+                Positioned(
+                  top: 0,
+                  left: 0,
+                  right: 0,
+                  child: _ChromeOverlay(
+                    visible: showBars,
+                    hiddenOffset: const Offset(0, -1),
+                    child: searchActive
+                        ? ViewerSearchBar(search: search, onClose: _closeSearch)
+                        : ViewerTopBar(
+                            document: widget.document,
+                            canGoToPage: isReady && _controller.pageCount > 1,
+                            onBack: () => Navigator.of(context).maybePop(),
+                            onShare: isMissing ? null : _shareDocument,
+                            onShowInfo: () =>
+                                _openDocumentInfo(_controller.pageCount),
+                            onGoToPage: () =>
+                                _openGoToPageDialog(_controller.pageCount),
+                            onSearch: isReady && search != null
+                                ? _openSearch
+                                : null,
+                          ),
                   ),
                 ),
-              ),
-            ],
+              ],
+            ),
           ),
         );
       },
@@ -333,10 +381,7 @@ class _ChromeOverlay extends StatelessWidget {
         opacity: visible ? 1 : 0,
         duration: FolioTokens.normal,
         curve: FolioTokens.curve,
-        child: IgnorePointer(
-          ignoring: !visible,
-          child: child,
-        ),
+        child: IgnorePointer(ignoring: !visible, child: child),
       ),
     );
   }

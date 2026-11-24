@@ -18,6 +18,7 @@ class ViewerTopBar extends StatelessWidget {
     required this.onShare,
     required this.onShowInfo,
     required this.onGoToPage,
+    this.onSearch,
   });
 
   final DocumentRef document;
@@ -26,6 +27,7 @@ class ViewerTopBar extends StatelessWidget {
   final VoidCallback? onShare;
   final VoidCallback onShowInfo;
   final VoidCallback onGoToPage;
+  final VoidCallback? onSearch;
 
   @override
   Widget build(BuildContext context) {
@@ -64,6 +66,15 @@ class ViewerTopBar extends StatelessWidget {
                       overflow: TextOverflow.ellipsis,
                     ),
                   ),
+                  if (onSearch != null)
+                    IconButton(
+                      icon: const Icon(
+                        LucideIcons.search,
+                        size: FolioTokens.iconBar,
+                      ),
+                      tooltip: 'Buscar',
+                      onPressed: onSearch,
+                    ),
                   IconButton(
                     icon: const Icon(
                       LucideIcons.share2,
