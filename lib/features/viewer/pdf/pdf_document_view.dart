@@ -7,6 +7,7 @@ import '../../../core/files/document_ref.dart';
 import '../../../core/theme/folio_colors.dart';
 import '../../../core/theme/folio_tokens.dart';
 import '../viewer_controller.dart';
+import '../viewer_layout.dart';
 import 'pdf_password_dialog.dart';
 import 'pdf_scroll_thumb.dart';
 import 'pdf_search.dart';
@@ -39,6 +40,9 @@ class _PdfDocumentViewState extends State<PdfDocumentView> {
   ];
 
   PdfViewerSearch? _search;
+
+  /// Márgenes fijados al abrir (no cambian al ocultar las barras).
+  EdgeInsets? _insets;
   bool _passwordAttempted = false;
   bool _passwordCancelled = false;
   bool _reportedFailure = false;
@@ -155,6 +159,7 @@ class _PdfDocumentViewState extends State<PdfDocumentView> {
   @override
   Widget build(BuildContext context) {
     final folio = context.folio;
+    final insets = _insets ??= ViewerLayout.contentInsets(context);
 
     return DefaultSelectionStyle(
       selectionColor: folio.accent.withValues(alpha: 0.3),
@@ -164,6 +169,9 @@ class _PdfDocumentViewState extends State<PdfDocumentView> {
         passwordProvider: _providePassword,
         params: PdfViewerParams(
           backgroundColor: folio.canvas,
+          // Permite desplazar el documento más allá de sus bordes para que la
+          // primera y la última página no queden debajo de las barras.
+          boundaryMargin: EdgeInsets.only(top: insets.top, bottom: insets.bottom),
           layoutStrategy: const SequentialPagesLayout(
             spacing: FolioTokens.s12,
             margin: FolioTokens.s12,
@@ -200,6 +208,9 @@ class _PdfDocumentViewState extends State<PdfDocumentView> {
             _search = PdfViewerSearch(pdfController);
             _attachViewerController(pdfController);
             widget.controller.markReady(pageCount: document.pages.length);
+            // Al abrir, baja el documento lo que mide la barra superior.
+            pdfController.value = Matrix4.translationValues(0, insets.top, 0)
+              ..multiply(pdfController.value);
           },
           onPageChanged: (pageNumber) {
             if (pageNumber != null) {
