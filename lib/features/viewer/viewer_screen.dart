@@ -17,6 +17,7 @@ import 'widgets/go_to_page_dialog.dart';
 import 'widgets/page_indicator.dart';
 import 'widgets/section_bar.dart';
 import 'widgets/viewer_error_view.dart';
+import 'widgets/viewer_search_bar.dart';
 import 'widgets/viewer_top_bar.dart';
 
 /// Pantalla del visor: barras, modo inmersivo, indicador, carga y errores
@@ -42,6 +43,7 @@ class _ViewerScreenState extends State<ViewerScreen> {
   late bool _ownsController;
   bool _fileExists = false;
   bool _barsVisible = true;
+  bool _searchOpen = false;
   bool _showLoading = false;
   bool _lastSystemUiVisible = true;
   Timer? _loadingTimer;
@@ -85,6 +87,9 @@ class _ViewerScreenState extends State<ViewerScreen> {
       _loadingTimer = null;
       _showLoading = false;
     }
+    if (_controller.status != ViewerStatus.ready || _controller.search == null) {
+      _searchOpen = false;
+    }
     _syncSystemUiMode();
   }
 
@@ -96,9 +101,11 @@ class _ViewerScreenState extends State<ViewerScreen> {
       if (_ownsController) {
         _controller.dispose();
       }
+      _searchOpen = false;
       _initController();
     }
     if (oldWidget.document.path != widget.document.path) {
+      _searchOpen = false;
       _checkFileAndStartLoading();
     }
   }
@@ -114,8 +121,15 @@ class _ViewerScreenState extends State<ViewerScreen> {
     super.dispose();
   }
 
+  bool get _isSearchActive =>
+      _searchOpen &&
+      _controller.status == ViewerStatus.ready &&
+      _controller.search != null;
+
   bool get _effectiveBarsVisible =>
-      _controller.status != ViewerStatus.ready || _barsVisible;
+      _controller.status != ViewerStatus.ready ||
+      _isSearchActive ||
+      _barsVisible;
 
   void _syncSystemUiMode() {
     final visible = _effectiveBarsVisible;
@@ -127,11 +141,27 @@ class _ViewerScreenState extends State<ViewerScreen> {
   }
 
   void _toggleChrome() {
-    if (_controller.status != ViewerStatus.ready) return;
+    if (_controller.status != ViewerStatus.ready || _isSearchActive) return;
     setState(() {
       _barsVisible = !_barsVisible;
     });
     _syncSystemUiMode();
+  }
+
+  void _openSearch() {
+    if (_controller.status != ViewerStatus.ready || _controller.search == null) {
+      return;
+    }
+    setState(() {
+      _searchOpen = true;
+      _barsVisible = true;
+    });
+    _syncSystemUiMode();
+  }
+
+  void _closeSearch() {
+    if (!mounted) return;
+    setState(() => _searchOpen = false);
   }
 
   Future<void> _shareDocument() async {
@@ -205,6 +235,8 @@ class _ViewerScreenState extends State<ViewerScreen> {
         final status = _controller.status;
         final failure = _controller.failure;
         final isReady = status == ViewerStatus.ready;
+        final search = _controller.search;
+        final searchActive = _searchOpen && isReady && search != null;
         final showBars = _effectiveBarsVisible;
         final hasSections = isReady && _controller.sections.length > 1;
         final hasPageIndicator =
@@ -293,15 +325,23 @@ class _ViewerScreenState extends State<ViewerScreen> {
                 child: _ChromeOverlay(
                   visible: showBars,
                   hiddenOffset: const Offset(0, -1),
-                  child: ViewerTopBar(
-                    document: widget.document,
-                    canGoToPage: isReady && _controller.pageCount > 1,
-                    onBack: () => Navigator.of(context).maybePop(),
-                    onShare: isMissing ? null : _shareDocument,
-                    onShowInfo: () => _openDocumentInfo(_controller.pageCount),
-                    onGoToPage: () =>
-                        _openGoToPageDialog(_controller.pageCount),
-                  ),
+                  child: searchActive
+                      ? ViewerSearchBar(
+                          search: search,
+                          onClose: _closeSearch,
+                        )
+                      : ViewerTopBar(
+                          document: widget.document,
+                          canGoToPage: isReady && _controller.pageCount > 1,
+                          onBack: () => Navigator.of(context).maybePop(),
+                          onShare: isMissing ? null : _shareDocument,
+                          onShowInfo: () =>
+                              _openDocumentInfo(_controller.pageCount),
+                          onGoToPage: () =>
+                              _openGoToPageDialog(_controller.pageCount),
+                          onSearch:
+                              isReady && search != null ? _openSearch : null,
+                        ),
                 ),
               ),
             ],
