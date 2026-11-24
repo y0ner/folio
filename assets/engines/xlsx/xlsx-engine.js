@@ -1,13 +1,30 @@
 (() => {
   'use strict';
 
-  const MAX_ROWS = 3000;
+  const MAX_ROWS = 20000;
   const MAX_COLS = 200;
+  const BLOCK_SIZE = 100;
   const DEFAULT_COL_WIDTH_PX = 64;
   const DEFAULT_ROW_HEIGHT_PX = 20;
+  const INTERSECTION_ROOT_MARGIN = '800px';
 
   const container = document.getElementById('viewer');
   let visibleSheets = [];
+  let blockObserver = null;
+  let pendingCatchUpFrame = null;
+  let renderGeneration = 0;
+
+  function cleanupVirtualization() {
+    renderGeneration += 1;
+    if (blockObserver) {
+      blockObserver.disconnect();
+      blockObserver = null;
+    }
+    if (pendingCatchUpFrame !== null) {
+      cancelAnimationFrame(pendingCatchUpFrame);
+      pendingCatchUpFrame = null;
+    }
+  }
 
   function setCanvas(canvas) {
     if (typeof canvas === 'string' && canvas.length > 0) {
@@ -170,6 +187,10 @@
     return '';
   }
 
+  function buildTruncationRowHtml(colCount, notice) {
+    return `<tr><td class="sheet-truncation-cell" colspan="${colCount + 1}"><div class="sheet-truncation-text">${escapeHtml(notice)}</div></td></tr>`;
+  }
+
   function isEmptySheet(sheet, range) {
     if (!sheet || !range) return true;
     if (range.e.r < 0 || range.e.c < 0) return true;
@@ -185,11 +206,14 @@
   }
 
   function renderEmptyState() {
+    cleanupVirtualization();
     container.innerHTML =
       '<div class="sheet-paper sheet-paper--empty"><p class="sheet-empty-message">Esta hoja está vacía</p></div>';
   }
 
   function renderSheet(index) {
+    cleanupVirtualization();
+
     const entry = visibleSheets[index];
     if (!entry || !entry.sheet || !entry.sheet['!ref']) {
       renderEmptyState();
@@ -207,13 +231,20 @@
     const totalCols = range.e.c + 1;
     const rowCount = Math.min(totalRows, MAX_ROWS);
     const colCount = Math.min(totalCols, MAX_COLS);
-    const rowHeaderWidth = rowCount >= 1000 ? 48 : 40;
+    const rowHeaderWidth = rowCount >= 10000 ? 52 : rowCount >= 1000 ? 48 : 40;
 
     const colsMeta = sheet['!cols'] || [];
     const rowsMeta = sheet['!rows'] || [];
 
+    const numBlocks = Math.ceil(rowCount / BLOCK_SIZE);
+    const blockMaxEndRow = new Int32Array(numBlocks);
+    for (let b = 0; b < numBlocks; b += 1) {
+      blockMaxEndRow[b] = Math.min(rowCount, (b + 1) * BLOCK_SIZE) - 1;
+    }
+
     const mergeOrigins = new Map();
     const coveredCells = new Set();
+    const rowsWithMerges = new Set();
     const merges = sheet['!merges'] || [];
     for (let i = 0; i < merges.length; i += 1) {
       const m = merges[i];
@@ -231,7 +262,13 @@
       if (coveredCells.has(originKey)) continue;
 
       mergeOrigins.set(originKey, { rowspan, colspan });
+      const startBlock = Math.floor(startR / BLOCK_SIZE);
+      if (endR > blockMaxEndRow[startBlock]) {
+        blockMaxEndRow[startBlock] = endR;
+      }
+
       for (let r = startR; r <= endR; r += 1) {
+        rowsWithMerges.add(r);
         for (let c = startC; c <= endC; c += 1) {
           if (r === startR && c === startC) continue;
           coveredCells.add(r * colCount + c);
@@ -241,11 +278,107 @@
 
     let totalTableWidth = rowHeaderWidth;
     const colWidths = new Array(colCount);
+    const colLetters = new Array(colCount);
     for (let c = 0; c < colCount; c += 1) {
       const w = getColumnWidth(colsMeta, c);
       colWidths[c] = w;
+      colLetters[c] = window.XLSX.utils.encode_col(c);
       totalTableWidth += w;
     }
+
+    const rowHeights = new Int32Array(rowCount);
+    const rowTops = new Int32Array(rowCount + 1);
+    for (let r = 0; r < rowCount; r += 1) {
+      const h = getRowHeight(rowsMeta, r);
+      rowHeights[r] = h;
+      rowTops[r + 1] = rowTops[r] + h;
+    }
+    const totalBodyHeight = rowTops[rowCount];
+
+    function resolveEndRow(fromRow, desiredEndRow) {
+      let endRow = Math.min(rowCount, desiredEndRow);
+      let b = Math.floor(fromRow / BLOCK_SIZE);
+      while (b * BLOCK_SIZE < endRow) {
+        const maxEnd = blockMaxEndRow[b];
+        if (maxEnd >= endRow) {
+          const neededBlock = Math.floor(maxEnd / BLOCK_SIZE);
+          endRow = Math.min(rowCount, (neededBlock + 1) * BLOCK_SIZE);
+        }
+        b += 1;
+      }
+      return endRow;
+    }
+
+    const hasMerges = rowsWithMerges.size > 0;
+    function renderRowsHtml(startRow, endRow) {
+      const parts = [];
+      for (let r = startRow; r < endRow; r += 1) {
+        const rowHeight = rowHeights[r];
+        const rowNum = r + 1;
+        const rowMerged = hasMerges && rowsWithMerges.has(r);
+        const rowBaseKey = r * colCount;
+        parts.push(
+          `<tr style="height:${rowHeight}px"><th class="sheet-row-header" scope="row">${rowNum}</th>`
+        );
+
+        for (let c = 0; c < colCount; c += 1) {
+          let merge = null;
+          if (rowMerged) {
+            const key = rowBaseKey + c;
+            if (coveredCells.has(key)) continue;
+            merge = mergeOrigins.get(key);
+          }
+
+          const cell = sheet[colLetters[c] + rowNum];
+          const alignClass = resolveAlignmentClass(cell);
+          const inlineStyle = buildCellInlineStyle(cell);
+          const text = getCellText(cell);
+
+          parts.push(`<td class="${alignClass}"`);
+          if (merge) {
+            if (merge.colspan > 1) parts.push(` colspan="${merge.colspan}"`);
+            if (merge.rowspan > 1) parts.push(` rowspan="${merge.rowspan}"`);
+          }
+          if (inlineStyle) {
+            parts.push(` style="${inlineStyle}"`);
+          }
+          parts.push('>');
+          if (text) {
+            parts.push(escapeHtml(text));
+          }
+          parts.push('</td>');
+        }
+
+        parts.push('</tr>');
+      }
+      return parts.join('');
+    }
+
+    const viewportHeight = Math.max(
+      window.innerHeight ||
+        (document.documentElement ? document.documentElement.clientHeight : 0) ||
+        0,
+      800
+    );
+    let firstOutsideRow = rowCount;
+    for (let r = 0; r < rowCount; r += 1) {
+      if (rowTops[r + 1] >= viewportHeight) {
+        firstOutsideRow = r;
+        break;
+      }
+    }
+    const lastVisibleBlock = Math.floor(
+      Math.min(firstOutsideRow, rowCount - 1) / BLOCK_SIZE
+    );
+    const initialTargetBlock = Math.min(numBlocks - 1, lastVisibleBlock + 1);
+    const initialDesiredEndRow = Math.min(
+      rowCount,
+      (initialTargetBlock + 1) * BLOCK_SIZE
+    );
+    let renderedRows = resolveEndRow(0, initialDesiredEndRow);
+
+    const notice = buildTruncationMessage(totalRows, totalCols);
+    const remainingHeight = totalBodyHeight - rowTops[renderedRows];
 
     const html = [];
     html.push('<div class="sheet-paper">');
@@ -260,55 +393,129 @@
     html.push('<thead><tr>');
     html.push('<th class="sheet-corner" scope="col"></th>');
     for (let c = 0; c < colCount; c += 1) {
-      const colLabel = window.XLSX.utils.encode_col(c);
-      html.push(`<th scope="col">${colLabel}</th>`);
+      html.push(`<th scope="col">${colLetters[c]}</th>`);
     }
     html.push('</tr></thead>');
 
     html.push('<tbody>');
-    for (let r = 0; r < rowCount; r += 1) {
-      const rowHeight = getRowHeight(rowsMeta, r);
-      html.push(`<tr style="height:${rowHeight}px">`);
-      html.push(`<th class="sheet-row-header" scope="row">${r + 1}</th>`);
-
-      for (let c = 0; c < colCount; c += 1) {
-        const key = r * colCount + c;
-        if (coveredCells.has(key)) continue;
-
-        const address = window.XLSX.utils.encode_cell({ r, c });
-        const cell = sheet[address];
-        const merge = mergeOrigins.get(key);
-        const alignClass = resolveAlignmentClass(cell);
-        const inlineStyle = buildCellInlineStyle(cell);
-        const text = getCellText(cell);
-
-        html.push(`<td class="${alignClass}"`);
-        if (merge) {
-          if (merge.colspan > 1) html.push(` colspan="${merge.colspan}"`);
-          if (merge.rowspan > 1) html.push(` rowspan="${merge.rowspan}"`);
-        }
-        if (inlineStyle) {
-          html.push(` style="${inlineStyle}"`);
-        }
-        html.push('>');
-        if (text) {
-          html.push(escapeHtml(text));
-        }
-        html.push('</td>');
-      }
-
-      html.push('</tr>');
-    }
-
-    const notice = buildTruncationMessage(totalRows, totalCols);
-    if (notice) {
+    html.push(renderRowsHtml(0, renderedRows));
+    if (renderedRows < rowCount) {
       html.push(
-        `<tr><td class="sheet-truncation-cell" colspan="${colCount + 1}"><div class="sheet-truncation-text">${escapeHtml(notice)}</div></td></tr>`
+        `<tr class="sheet-spacer-row" aria-hidden="true" style="height:${remainingHeight}px"><td class="sheet-spacer-cell" colspan="${colCount + 1}" style="height:${remainingHeight}px"></td></tr>`
       );
+    } else if (notice) {
+      html.push(buildTruncationRowHtml(colCount, notice));
     }
-
     html.push('</tbody></table></div>');
     container.innerHTML = html.join('');
+
+    if (renderedRows >= rowCount) {
+      return;
+    }
+
+    const currentGen = renderGeneration;
+    const spacerRow = container.querySelector('tr.sheet-spacer-row');
+    const spacerCell = spacerRow
+      ? spacerRow.querySelector('td.sheet-spacer-cell')
+      : null;
+    if (!spacerRow || !spacerCell) {
+      return;
+    }
+
+    function appendNextBlock() {
+      if (currentGen !== renderGeneration || renderedRows >= rowCount) {
+        return false;
+      }
+      const nextBlockEnd = Math.min(rowCount, renderedRows + BLOCK_SIZE);
+      const targetEnd = resolveEndRow(renderedRows, nextBlockEnd);
+      const chunkHtml = renderRowsHtml(renderedRows, targetEnd);
+      spacerRow.insertAdjacentHTML('beforebegin', chunkHtml);
+      renderedRows = targetEnd;
+
+      if (renderedRows >= rowCount) {
+        if (notice) {
+          spacerRow.insertAdjacentHTML(
+            'beforebegin',
+            buildTruncationRowHtml(colCount, notice)
+          );
+        }
+        cleanupVirtualization();
+        spacerRow.remove();
+        return false;
+      }
+
+      const nextRemaining = totalBodyHeight - rowTops[renderedRows];
+      spacerRow.style.height = `${nextRemaining}px`;
+      spacerCell.style.height = `${nextRemaining}px`;
+      return true;
+    }
+
+    function isSpacerNearViewport() {
+      const rect = spacerCell.getBoundingClientRect();
+      const vh =
+        window.innerHeight ||
+        (document.documentElement ? document.documentElement.clientHeight : 0) ||
+        800;
+      return rect.top <= vh + 800 && rect.bottom >= -800;
+    }
+
+    function scheduleCatchUp() {
+      if (pendingCatchUpFrame !== null || currentGen !== renderGeneration) {
+        return;
+      }
+      pendingCatchUpFrame = requestAnimationFrame(() => {
+        pendingCatchUpFrame = null;
+        if (currentGen !== renderGeneration || renderedRows >= rowCount) {
+          return;
+        }
+        const vh =
+          window.innerHeight ||
+          (document.documentElement ? document.documentElement.clientHeight : 0) ||
+          800;
+        const rect = spacerCell.getBoundingClientRect();
+        let top = rect.top;
+        const bottom = rect.bottom;
+        const deadline = performance.now() + 8;
+        let hasMore = true;
+
+        while (hasMore && top <= vh + 800 && bottom >= -800) {
+          const prevRows = renderedRows;
+          hasMore = appendNextBlock();
+          top += rowTops[renderedRows] - rowTops[prevRows];
+          if (performance.now() >= deadline) {
+            break;
+          }
+        }
+        if (hasMore && top <= vh + 800 && bottom >= -800) {
+          scheduleCatchUp();
+        }
+      });
+    }
+
+    if (typeof IntersectionObserver === 'function') {
+      blockObserver = new IntersectionObserver(
+        (entries) => {
+          if (currentGen !== renderGeneration) return;
+          let intersecting = false;
+          for (let i = 0; i < entries.length; i += 1) {
+            if (entries[i].isIntersecting) {
+              intersecting = true;
+              break;
+            }
+          }
+          if (!intersecting) return;
+
+          const hasMore = appendNextBlock();
+          if (hasMore && isSpacerNearViewport()) {
+            scheduleCatchUp();
+          }
+        },
+        { root: null, rootMargin: INTERSECTION_ROOT_MARGIN }
+      );
+      blockObserver.observe(spacerCell);
+    } else {
+      scheduleCatchUp();
+    }
   }
 
   function decodeCsvText(buffer) {
@@ -367,6 +574,7 @@
       return;
     }
 
+    cleanupVirtualization();
     container.innerHTML = '';
     visibleSheets = [];
 

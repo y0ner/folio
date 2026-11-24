@@ -131,3 +131,11 @@
   left: 12px;
   display: inline-block;
 }
+
+.sheet-table tbody tr.sheet-spacer-row td.sheet-spacer-cell {
+  background-color: #ffffff;
+  border: 0;
+  padding: 0;
+  font-size: 0;
+  line-height: 0;
+}
