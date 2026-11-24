@@ -6,7 +6,7 @@ import '../../../core/files/document_ref.dart';
 import '../../../core/theme/folio_colors.dart';
 import '../../../core/theme/folio_tokens.dart';
 
-enum _TopBarMenuAction { info, goToPage }
+enum _TopBarMenuAction { saveCopy, info, goToPage }
 
 /// Barra superior propia del visor con navegación, tipo, nombre y acciones.
 class ViewerTopBar extends StatelessWidget {
@@ -18,6 +18,7 @@ class ViewerTopBar extends StatelessWidget {
     required this.onShare,
     required this.onShowInfo,
     required this.onGoToPage,
+    this.onSaveCopy,
     this.onSearch,
   });
 
@@ -27,6 +28,7 @@ class ViewerTopBar extends StatelessWidget {
   final VoidCallback? onShare;
   final VoidCallback onShowInfo;
   final VoidCallback onGoToPage;
+  final VoidCallback? onSaveCopy;
   final VoidCallback? onSearch;
 
   @override
@@ -91,6 +93,8 @@ class ViewerTopBar extends StatelessWidget {
                     tooltip: 'Más opciones',
                     onSelected: (action) {
                       switch (action) {
+                        case _TopBarMenuAction.saveCopy:
+                          onSaveCopy?.call();
                         case _TopBarMenuAction.info:
                           onShowInfo();
                         case _TopBarMenuAction.goToPage:
@@ -98,6 +102,20 @@ class ViewerTopBar extends StatelessWidget {
                       }
                     },
                     itemBuilder: (context) => [
+                      if (onSaveCopy != null)
+                        const PopupMenuItem<_TopBarMenuAction>(
+                          value: _TopBarMenuAction.saveCopy,
+                          child: Row(
+                            children: [
+                              Icon(
+                                LucideIcons.download,
+                                size: FolioTokens.iconList,
+                              ),
+                              SizedBox(width: FolioTokens.s12),
+                              Text('Guardar una copia…'),
+                            ],
+                          ),
+                        ),
                       const PopupMenuItem<_TopBarMenuAction>(
                         value: _TopBarMenuAction.info,
                         child: Text('Información del archivo'),

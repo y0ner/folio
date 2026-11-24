@@ -1,6 +1,9 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+import 'package:lucide_icons_flutter/lucide_icons.dart';
 
 import '../../../core/files/document_ref.dart';
+import '../../../core/files/source_location.dart';
 import '../../../core/theme/folio_colors.dart';
 import '../../../core/theme/folio_tokens.dart';
 
@@ -34,14 +37,23 @@ class DocumentInfoSheet extends StatelessWidget {
         '${two(local.hour)}:${two(local.minute)}';
   }
 
+  Future<void> _copyLocation(BuildContext context, String location) async {
+    await Clipboard.setData(ClipboardData(text: location));
+    if (!context.mounted) return;
+    ScaffoldMessenger.maybeOf(context)
+      ?..hideCurrentSnackBar()
+      ..showSnackBar(const SnackBar(content: Text('Ruta copiada')));
+  }
+
   @override
   Widget build(BuildContext context) {
     final textTheme = Theme.of(context).textTheme;
     final folio = context.folio;
+    final location = describeSource(document.source);
 
     return SafeArea(
       top: false,
-      child: Padding(
+      child: SingleChildScrollView(
         padding: const EdgeInsets.fromLTRB(
           FolioTokens.gutter,
           0,
@@ -71,6 +83,33 @@ class DocumentInfoSheet extends StatelessWidget {
               Divider(color: folio.border),
               _InfoRow(label: 'Páginas', value: '$pageCount'),
             ],
+            Divider(color: folio.border),
+            _InfoRow(
+              label: 'Ubicación',
+              value: location ?? 'Desconocida (abierto antes de esta versión)',
+              selectable: true,
+              valueStyle: location == null
+                  ? textTheme.bodyLarge?.copyWith(color: folio.textSecondary)
+                  : null,
+              trailing: location == null
+                  ? null
+                  : IconButton(
+                      icon: const Icon(
+                        LucideIcons.copy,
+                        size: FolioTokens.iconList,
+                      ),
+                      tooltip: 'Copiar ruta',
+                      onPressed: () => _copyLocation(context, location),
+                    ),
+            ),
+            Divider(color: folio.border),
+            _InfoRow(
+              label: 'Copia en Folio',
+              value: document.path,
+              selectable: true,
+              valueStyle:
+                  textTheme.labelSmall?.copyWith(color: folio.textTertiary),
+            ),
           ],
         ),
       ),
@@ -79,14 +118,24 @@ class DocumentInfoSheet extends StatelessWidget {
 }
 
 class _InfoRow extends StatelessWidget {
-  const _InfoRow({required this.label, required this.value});
+  const _InfoRow({
+    required this.label,
+    required this.value,
+    this.selectable = false,
+    this.valueStyle,
+    this.trailing,
+  });
 
   final String label;
   final String value;
+  final bool selectable;
+  final TextStyle? valueStyle;
+  final Widget? trailing;
 
   @override
   Widget build(BuildContext context) {
     final textTheme = Theme.of(context).textTheme;
+    final style = valueStyle ?? textTheme.bodyLarge;
 
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: FolioTokens.s12),
@@ -94,17 +143,27 @@ class _InfoRow extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           SizedBox(
-            width: 88,
+            width: 96,
             child: Text(label, style: textTheme.bodyMedium),
           ),
           const SizedBox(width: FolioTokens.s12),
           Expanded(
-            child: Text(
-              value,
-              style: textTheme.bodyLarge,
-              textAlign: TextAlign.end,
-            ),
+            child: selectable
+                ? SelectableText(
+                    value,
+                    style: style,
+                    textAlign: TextAlign.end,
+                  )
+                : Text(
+                    value,
+                    style: style,
+                    textAlign: TextAlign.end,
+                  ),
           ),
+          if (trailing != null) ...[
+            const SizedBox(width: FolioTokens.s4),
+            trailing!,
+          ],
         ],
       ),
     );
