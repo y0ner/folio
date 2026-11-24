@@ -64,7 +64,8 @@
 
 .sheet-table thead th {
   position: sticky;
-  top: 0;
+  /* Debajo de la barra superior del visor. */
+  top: var(--inset-top, 0px);
   z-index: 2;
   height: 22px;
   border-top: 1px solid #e1e1de;
@@ -129,4 +130,12 @@
   position: sticky;
   left: 12px;
   display: inline-block;
+}
+
+.sheet-table tbody tr.sheet-spacer-row td.sheet-spacer-cell {
+  background-color: #ffffff;
+  border: 0;
+  padding: 0;
+  font-size: 0;
+  line-height: 0;
 }

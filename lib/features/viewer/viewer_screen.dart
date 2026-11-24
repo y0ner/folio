@@ -11,6 +11,7 @@ import '../../core/theme/folio_colors.dart';
 import '../../core/theme/folio_tokens.dart';
 import 'office/office_document_view.dart';
 import 'pdf/pdf_document_view.dart';
+import 'document_actions.dart';
 import 'viewer_controller.dart';
 import 'widgets/document_info_sheet.dart';
 import 'widgets/go_to_page_dialog.dart';
@@ -189,6 +190,22 @@ class _ViewerScreenState extends State<ViewerScreen> {
     }
   }
 
+  Future<void> _saveCopy() async {
+    final result = await saveDocumentCopy(widget.document);
+    if (!mounted) return;
+    final message = switch (result) {
+      SaveCopyResult.saved => 'Copia guardada',
+      SaveCopyResult.cancelled => null,
+      SaveCopyResult.tooLarge =>
+        'El archivo es demasiado grande para copiarlo así; usa Compartir',
+      SaveCopyResult.failed => 'No se pudo guardar la copia',
+    };
+    if (message == null) return;
+    ScaffoldMessenger.of(context)
+      ..hideCurrentSnackBar()
+      ..showSnackBar(SnackBar(content: Text(message)));
+  }
+
   Future<void> _openDocumentInfo(int pageCount) async {
     await showModalBottomSheet<void>(
       context: context,
@@ -341,6 +358,7 @@ class _ViewerScreenState extends State<ViewerScreen> {
                             canGoToPage: isReady && _controller.pageCount > 1,
                             onBack: () => Navigator.of(context).maybePop(),
                             onShare: isMissing ? null : _shareDocument,
+                            onSaveCopy: isMissing ? null : _saveCopy,
                             onShowInfo: () =>
                                 _openDocumentInfo(_controller.pageCount),
                             onGoToPage: () =>

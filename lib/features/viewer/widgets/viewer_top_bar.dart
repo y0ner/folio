@@ -6,7 +6,7 @@ import '../../../core/files/document_ref.dart';
 import '../../../core/theme/folio_colors.dart';
 import '../../../core/theme/folio_tokens.dart';
 
-enum _TopBarMenuAction { info, goToPage }
+enum _TopBarMenuAction { saveCopy, info, goToPage }
 
 /// Barra superior propia del visor con navegación, tipo, nombre y acciones.
 class ViewerTopBar extends StatelessWidget {
@@ -18,6 +18,7 @@ class ViewerTopBar extends StatelessWidget {
     required this.onShare,
     required this.onShowInfo,
     required this.onGoToPage,
+    this.onSaveCopy,
     this.onSearch,
   });
 
@@ -27,6 +28,7 @@ class ViewerTopBar extends StatelessWidget {
   final VoidCallback? onShare;
   final VoidCallback onShowInfo;
   final VoidCallback onGoToPage;
+  final VoidCallback? onSaveCopy;
   final VoidCallback? onSearch;
 
   @override
@@ -91,6 +93,8 @@ class ViewerTopBar extends StatelessWidget {
                     tooltip: 'Más opciones',
                     onSelected: (action) {
                       switch (action) {
+                        case _TopBarMenuAction.saveCopy:
+                          onSaveCopy?.call();
                         case _TopBarMenuAction.info:
                           onShowInfo();
                         case _TopBarMenuAction.goToPage:
@@ -98,14 +102,28 @@ class ViewerTopBar extends StatelessWidget {
                       }
                     },
                     itemBuilder: (context) => [
+                      if (onSaveCopy != null)
+                        const PopupMenuItem<_TopBarMenuAction>(
+                          value: _TopBarMenuAction.saveCopy,
+                          child: _MenuRow(
+                            icon: LucideIcons.download,
+                            label: 'Guardar una copia…',
+                          ),
+                        ),
                       const PopupMenuItem<_TopBarMenuAction>(
                         value: _TopBarMenuAction.info,
-                        child: Text('Información del archivo'),
+                        child: _MenuRow(
+                          icon: LucideIcons.info,
+                          label: 'Información del archivo',
+                        ),
                       ),
                       if (canGoToPage)
                         const PopupMenuItem<_TopBarMenuAction>(
                           value: _TopBarMenuAction.goToPage,
-                          child: Text('Ir a la página…'),
+                          child: _MenuRow(
+                            icon: LucideIcons.listOrdered,
+                            label: 'Ir a la página…',
+                          ),
                         ),
                     ],
                   ),
@@ -126,10 +144,8 @@ class _SmallDocBadge extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final labelStyle = Theme.of(context).textTheme.labelSmall?.copyWith(
-          color: kind.color(context),
-          fontWeight: FontWeight.w600,
-        );
+    final labelStyle = Theme.of(context).textTheme.labelSmall
+        ?.copyWith(color: kind.color(context), fontWeight: FontWeight.w600);
 
     return Container(
       width: 22,
@@ -142,12 +158,27 @@ class _SmallDocBadge extends StatelessWidget {
       ),
       child: FittedBox(
         fit: BoxFit.scaleDown,
-        child: Text(
-          kind.abbreviation,
-          style: labelStyle,
-          maxLines: 1,
-        ),
+        child: Text(kind.abbreviation, style: labelStyle, maxLines: 1),
       ),
+    );
+  }
+}
+
+/// Fila del menú ⋮: icono + texto que se ajusta si no cabe.
+class _MenuRow extends StatelessWidget {
+  const _MenuRow({required this.icon, required this.label});
+
+  final IconData icon;
+  final String label;
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      children: [
+        Icon(icon, size: FolioTokens.iconList),
+        const SizedBox(width: FolioTokens.s12),
+        Flexible(child: Text(label, overflow: TextOverflow.ellipsis)),
+      ],
     );
   }
 }

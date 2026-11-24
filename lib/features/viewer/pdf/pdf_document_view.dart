@@ -7,6 +7,7 @@ import '../../../core/files/document_ref.dart';
 import '../../../core/theme/folio_colors.dart';
 import '../../../core/theme/folio_tokens.dart';
 import '../viewer_controller.dart';
+import '../viewer_layout.dart';
 import 'pdf_password_dialog.dart';
 import 'pdf_scroll_thumb.dart';
 import 'pdf_search.dart';
@@ -39,6 +40,9 @@ class _PdfDocumentViewState extends State<PdfDocumentView> {
   ];
 
   PdfViewerSearch? _search;
+
+  /// Márgenes fijados al abrir (no cambian al ocultar las barras).
+  EdgeInsets? _insets;
   bool _passwordAttempted = false;
   bool _passwordCancelled = false;
   bool _reportedFailure = false;
@@ -137,17 +141,11 @@ class _PdfDocumentViewState extends State<PdfDocumentView> {
     debugPrint('PdfDocumentView: error al cargar el PDF: $error');
     if (error is PdfPasswordException || _passwordCancelled) {
       widget.controller.fail(
-        ViewerFailure(
-          ViewerFailureKind.encrypted,
-          detail: error?.toString(),
-        ),
+        ViewerFailure(ViewerFailureKind.encrypted, detail: error?.toString()),
       );
     } else {
       widget.controller.fail(
-        ViewerFailure(
-          ViewerFailureKind.corrupt,
-          detail: '$error',
-        ),
+        ViewerFailure(ViewerFailureKind.corrupt, detail: '$error'),
       );
     }
   }
@@ -155,57 +153,66 @@ class _PdfDocumentViewState extends State<PdfDocumentView> {
   @override
   Widget build(BuildContext context) {
     final folio = context.folio;
+    final insets = _insets ??= ViewerLayout.contentInsets(context);
 
-    return DefaultSelectionStyle(
-      selectionColor: folio.accent.withValues(alpha: 0.3),
-      child: PdfViewer.file(
-        widget.document.path,
-        controller: _pdfController,
-        passwordProvider: _providePassword,
-        params: PdfViewerParams(
-          backgroundColor: folio.canvas,
-          layoutStrategy: const SequentialPagesLayout(
-            spacing: FolioTokens.s12,
-            margin: FolioTokens.s12,
+    // pdfrx mide sus márgenes en unidades del documento (dependen del zoom),
+    // así que el visor empieza debajo de la barra superior: la primera página
+    // siempre se ve entera.
+    return Padding(
+      padding: EdgeInsets.only(top: insets.top),
+      child: DefaultSelectionStyle(
+        selectionColor: folio.accent.withValues(alpha: 0.3),
+        child: PdfViewer.file(
+          widget.document.path,
+          controller: _pdfController,
+          passwordProvider: _providePassword,
+          params: PdfViewerParams(
+            backgroundColor: folio.canvas,
+            layoutStrategy: const SequentialPagesLayout(
+              spacing: FolioTokens.s12,
+              margin: FolioTokens.s12,
+            ),
+            sizeDelegateProvider: const PdfViewerSizeDelegateProviderSmart(
+              smartMaxScale: double.infinity,
+              maxPagesVisible: 1.0,
+            ),
+            pageDropShadow: BoxShadow(
+              // Única excepción permitida a la regla de Colors.*: no hay token
+              // de sombra de página en FolioColors.
+              color: Colors.black.withValues(
+                alpha: context.isDark ? 0.5 : 0.08,
+              ),
+              blurRadius: 12,
+              offset: const Offset(0, 2),
+            ),
+            textSelectionParams: const PdfTextSelectionParams(enabled: true),
+            matchTextColor: folio.accent.withValues(alpha: 0.25),
+            activeMatchTextColor: folio.accent.withValues(alpha: 0.55),
+            pagePaintCallbacks: _pagePaintCallbacks,
+            linkHandlerParams: PdfLinkHandlerParams(
+              onLinkTap: _handleLinkTap,
+              linkColor: Colors.transparent,
+              enableAutoLinkDetection: false,
+            ),
+            onGeneralTap: _handleGeneralTap,
+            viewerOverlayBuilder: (context, size, handleLinkTap) => [
+              FolioPdfScrollThumb(controller: _pdfController),
+            ],
+            errorBannerBuilder: (context, error, stackTrace, documentRef) =>
+                const SizedBox.shrink(),
+            onDocumentLoadFinished: _handleDocumentLoadFinished,
+            onViewerReady: (document, pdfController) {
+              _search?.dispose();
+              _search = PdfViewerSearch(pdfController);
+              _attachViewerController(pdfController);
+              widget.controller.markReady(pageCount: document.pages.length);
+            },
+            onPageChanged: (pageNumber) {
+              if (pageNumber != null) {
+                widget.controller.setPage(pageNumber);
+              }
+            },
           ),
-          sizeDelegateProvider: const PdfViewerSizeDelegateProviderSmart(
-            smartMaxScale: double.infinity,
-            maxPagesVisible: 1.0,
-          ),
-          pageDropShadow: BoxShadow(
-            // Única excepción permitida a la regla de Colors.*: no hay token
-            // de sombra de página en FolioColors.
-            color: Colors.black.withValues(alpha: context.isDark ? 0.5 : 0.08),
-            blurRadius: 12,
-            offset: const Offset(0, 2),
-          ),
-          textSelectionParams: const PdfTextSelectionParams(enabled: true),
-          matchTextColor: folio.accent.withValues(alpha: 0.25),
-          activeMatchTextColor: folio.accent.withValues(alpha: 0.55),
-          pagePaintCallbacks: _pagePaintCallbacks,
-          linkHandlerParams: PdfLinkHandlerParams(
-            onLinkTap: _handleLinkTap,
-            linkColor: Colors.transparent,
-            enableAutoLinkDetection: false,
-          ),
-          onGeneralTap: _handleGeneralTap,
-          viewerOverlayBuilder: (context, size, handleLinkTap) => [
-            FolioPdfScrollThumb(controller: _pdfController),
-          ],
-          errorBannerBuilder: (context, error, stackTrace, documentRef) =>
-              const SizedBox.shrink(),
-          onDocumentLoadFinished: _handleDocumentLoadFinished,
-          onViewerReady: (document, pdfController) {
-            _search?.dispose();
-            _search = PdfViewerSearch(pdfController);
-            _attachViewerController(pdfController);
-            widget.controller.markReady(pageCount: document.pages.length);
-          },
-          onPageChanged: (pageNumber) {
-            if (pageNumber != null) {
-              widget.controller.setPage(pageNumber);
-            }
-          },
         ),
       ),
     );

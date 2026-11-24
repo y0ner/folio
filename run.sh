@@ -69,7 +69,8 @@ case "$ACTION" in
     ;;
   install)
     need_android
-    flutter build apk --release "${DEFINES[@]}" "$@"
+    # Solo arm64 (los celulares actuales): APK más liviano y compilación más rápida.
+    flutter build apk --release --target-platform android-arm64 "${DEFINES[@]}" "$@"
     adb -s "$ID" install -r build/app/outputs/flutter-apk/app-release.apk
     echo "✔ Instalado en $ID"
     ;;

@@ -1,6 +1,7 @@
 import 'dart:io';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:folio/core/files/doc_kind.dart';
 import 'package:folio/core/files/document_ref.dart';
@@ -69,6 +70,7 @@ void main() {
     DocKind kind = DocKind.pdf,
     String name = 'documento.pdf',
     int sizeBytes = 2048,
+    String? source,
   }) =>
       DocumentRef(
         path: path ?? tempFile.path,
@@ -76,6 +78,7 @@ void main() {
         kind: kind,
         sizeBytes: sizeBytes,
         openedAt: DateTime(2026, 5, 14, 9, 30),
+        source: source,
       );
 
   Widget wrap(Widget child) => MaterialApp(
@@ -279,5 +282,85 @@ void main() {
     expect(search.clearCalls, 1);
     expect(find.byType(ViewerSearchBar), findsNothing);
     expect(find.byTooltip('Buscar'), findsOneWidget);
+  });
+
+  testWidgets(
+      'hoja de información muestra Ubicación, ruta legible y permite copiarla',
+      (tester) async {
+    String? copiedText;
+    TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+        .setMockMethodCallHandler(SystemChannels.platform, (call) async {
+      if (call.method == 'Clipboard.setData') {
+        final args = call.arguments as Map<Object?, Object?>;
+        copiedText = args['text'] as String?;
+      }
+      return null;
+    });
+    addTearDown(() {
+      TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+          .setMockMethodCallHandler(SystemChannels.platform, null);
+    });
+
+    final controller = ViewerController();
+    addTearDown(controller.dispose);
+    final doc = makeDoc(
+      source:
+          'content://com.android.externalstorage.documents/document/primary%3ADownload%2Fcarta.docx',
+    );
+
+    await tester.pumpWidget(
+      wrap(ViewerScreen(document: doc, controller: controller)),
+    );
+
+    controller.markReady(pageCount: 2);
+    await tester.pump();
+
+    await tester.tap(find.byTooltip('Más opciones'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Guardar una copia…'), findsOneWidget);
+
+    await tester.tap(find.text('Información del archivo'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Ubicación'), findsOneWidget);
+    expect(
+      find.text('/storage/emulated/0/Download/carta.docx'),
+      findsOneWidget,
+    );
+    expect(find.text('Copia en Folio'), findsOneWidget);
+    expect(find.text(doc.path), findsOneWidget);
+
+    await tester.tap(find.byTooltip('Copiar ruta'));
+    await tester.pump();
+
+    expect(copiedText, '/storage/emulated/0/Download/carta.docx');
+    expect(find.text('Ruta copiada'), findsOneWidget);
+  });
+
+  testWidgets('hoja de información sin source muestra texto de desconocida',
+      (tester) async {
+    final controller = ViewerController();
+    addTearDown(controller.dispose);
+
+    await tester.pumpWidget(
+      wrap(ViewerScreen(document: makeDoc(), controller: controller)),
+    );
+
+    controller.markReady(pageCount: 1);
+    await tester.pump();
+
+    await tester.tap(find.byTooltip('Más opciones'));
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text('Información del archivo'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Ubicación'), findsOneWidget);
+    expect(
+      find.text('Desconocida (abierto antes de esta versión)'),
+      findsOneWidget,
+    );
+    expect(find.byTooltip('Copiar ruta'), findsNothing);
   });
 }

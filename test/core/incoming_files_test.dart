@@ -1,5 +1,6 @@
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:folio/core/files/doc_kind.dart';
 import 'package:folio/core/files/incoming_files.dart';
 
 void main() {
@@ -24,6 +25,30 @@ void main() {
           path: '/cache/incoming/informe.pdf',
           name: 'informe.pdf',
         ),
+      );
+    });
+
+    test('construye con uri opcional cuando viene en el mapa', () {
+      final file = IncomingFile.fromMap({
+        'path': '/cache/incoming/carta.docx',
+        'name': 'carta.docx',
+        'uri': 'content://com.whatsapp.provider.media/item/1',
+      });
+      expect(
+        file,
+        const IncomingFile(
+          path: '/cache/incoming/carta.docx',
+          name: 'carta.docx',
+          uri: 'content://com.whatsapp.provider.media/item/1',
+        ),
+      );
+      expect(
+        IncomingFile.fromMap({
+          'path': '/cache/incoming/carta.docx',
+          'name': 'carta.docx',
+          'uri': '',
+        })?.uri,
+        isNull,
       );
     });
 
@@ -112,6 +137,123 @@ void main() {
       );
 
       expect(await futureError, 'Permiso denegado');
+    });
+
+    test('pick() devuelve IncomingFile con uri cuando se elige un archivo', () async {
+      TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+          .setMockMethodCallHandler(channel, (call) async {
+        if (call.method == 'pick') {
+          return {
+            'path': '/cache/incoming/carta.docx',
+            'name': 'carta.docx',
+            'uri': 'file:///storage/emulated/0/Download/carta.docx',
+          };
+        }
+        return null;
+      });
+
+      final file = await IncomingFiles.pick();
+      expect(
+        file,
+        const IncomingFile(
+          path: '/cache/incoming/carta.docx',
+          name: 'carta.docx',
+          uri: 'file:///storage/emulated/0/Download/carta.docx',
+        ),
+      );
+    });
+
+    test('pick() devuelve null cuando el usuario cancela', () async {
+      TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+          .setMockMethodCallHandler(channel, (call) async => null);
+
+      expect(await IncomingFiles.pick(), isNull);
+    });
+
+    test('pick() devuelve null si el selector está ocupado (busy)', () async {
+      TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+          .setMockMethodCallHandler(channel, (call) async {
+        throw PlatformException(code: 'busy', message: 'Selector abierto');
+      });
+
+      expect(await IncomingFiles.pick(), isNull);
+    });
+
+    test('pick() propaga errores nativos distintos de busy', () async {
+      TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+          .setMockMethodCallHandler(channel, (call) async {
+        throw PlatformException(code: 'pick_error', message: 'Fallo al copiar');
+      });
+
+      await expectLater(IncomingFiles.pick(), throwsA(isA<PlatformException>()));
+    });
+
+    test('pick() no pisa el handler de una instancia activa de IncomingFiles', () async {
+      final incoming = IncomingFiles(channel: channel);
+      addTearDown(incoming.dispose);
+
+      TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+          .setMockMethodCallHandler(channel, (call) async => null);
+      expect(await IncomingFiles.pick(channel: channel), isNull);
+
+      final futureFile = incoming.files.first;
+      await TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+          .handlePlatformMessage(
+        channel.name,
+        const StandardMethodCodec().encodeMethodCall(
+          const MethodCall('onFile', {
+            'path': '/cache/incoming/nota.pdf',
+            'name': 'nota.pdf',
+          }),
+        ),
+        (_) {},
+      );
+
+      expect(
+        await futureFile,
+        const IncomingFile(path: '/cache/incoming/nota.pdf', name: 'nota.pdf'),
+      );
+    });
+
+    test('initial() emite en defaultChosen y devuelve null para muestras',
+        () async {
+      TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+          .setMockMethodCallHandler(channel, (call) async {
+        if (call.method == 'getInitial') {
+          return {'defaultChosen': 'pdf'};
+        }
+        return null;
+      });
+
+      final incoming = IncomingFiles(channel: channel);
+      addTearDown(incoming.dispose);
+
+      final futureChosen = incoming.defaultChosen.first;
+      expect(await incoming.initial(), isNull);
+      expect(await futureChosen, DocKind.pdf);
+    });
+
+    test('onDefaultChosen emite en el stream defaultChosen y no en files',
+        () async {
+      final incoming = IncomingFiles(channel: channel);
+      addTearDown(incoming.dispose);
+
+      final files = <IncomingFile>[];
+      final sub = incoming.files.listen(files.add);
+      addTearDown(sub.cancel);
+
+      final futureChosen = incoming.defaultChosen.first;
+      await TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+          .handlePlatformMessage(
+        channel.name,
+        const StandardMethodCodec().encodeMethodCall(
+          const MethodCall('onDefaultChosen', {'kind': 'powerpoint'}),
+        ),
+        (_) {},
+      );
+
+      expect(await futureChosen, DocKind.powerpoint);
+      expect(files, isEmpty);
     });
   });
 }

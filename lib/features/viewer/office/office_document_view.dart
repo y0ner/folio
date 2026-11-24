@@ -8,6 +8,7 @@ import 'package:path/path.dart' as p;
 
 import '../../../core/files/document_ref.dart';
 import '../../../core/theme/folio_colors.dart';
+import '../viewer_layout.dart';
 import '../viewer_controller.dart';
 import 'engine_message.dart';
 import 'office_engine.dart';
@@ -40,6 +41,10 @@ class _OfficeDocumentViewState extends State<OfficeDocumentView> {
   InAppWebViewController? _webController;
   bool _initialized = false;
   String? _lastCanvasHex;
+
+  /// Márgenes fijados al abrir (no cambian al ocultar las barras, para que
+  /// el documento no salte).
+  EdgeInsets? _insets;
 
   @override
   void initState() {
@@ -194,8 +199,10 @@ class _OfficeDocumentViewState extends State<OfficeDocumentView> {
             'docUrl': _documentUrl(),
             'canvas': canvasHex,
           });
+          final insets = _insets ??= ViewerLayout.contentInsets(context);
+          final css = documentInsetsJs(insets);
           webController.evaluateJavascript(
-            source: 'window.folio && folio.init($payload)',
+            source: '$css window.folio && folio.init($payload)',
           );
         },
         onReceivedError: (webController, request, error) {
@@ -215,4 +222,12 @@ class _OfficeDocumentViewState extends State<OfficeDocumentView> {
       ),
     );
   }
+}
+
+/// JS que fija los márgenes del contenido (`--inset-top` / `--inset-bottom`,
+/// en px CSS = dp) que usa `assets/engines/common/base.css`.
+String documentInsetsJs(EdgeInsets insets) {
+  final root = 'document.documentElement.style';
+  return "$root.setProperty('--inset-top','${insets.top.round()}px');"
+      "$root.setProperty('--inset-bottom','${insets.bottom.round()}px');";
 }
