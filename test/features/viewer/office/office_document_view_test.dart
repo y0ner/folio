@@ -37,7 +37,12 @@ void main() {
     expect(controller.status, ViewerStatus.failed);
     expect(controller.failure?.kind, ViewerFailureKind.unsupported);
 
-    final box = tester.widget<ColoredBox>(find.byType(ColoredBox));
+    final box = tester.widget<ColoredBox>(
+      find.descendant(
+        of: find.byType(OfficeDocumentView),
+        matching: find.byType(ColoredBox),
+      ),
+    );
     expect(box.color, FolioColors.light.canvas);
   });
 
@@ -70,7 +75,12 @@ void main() {
     expect(controller.status, ViewerStatus.failed);
     expect(controller.failure?.kind, ViewerFailureKind.missing);
 
-    final box = tester.widget<ColoredBox>(find.byType(ColoredBox));
+    final box = tester.widget<ColoredBox>(
+      find.descendant(
+        of: find.byType(OfficeDocumentView),
+        matching: find.byType(ColoredBox),
+      ),
+    );
     expect(box.color, FolioColors.dark.canvas);
   });
 }
