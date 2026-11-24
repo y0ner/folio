@@ -57,6 +57,16 @@ class IncomingFiles(
             result.success(null)
             return
         }
+        if (isSampleUri(request.uri)) {
+            val kind = sampleKind(request.uri, request.mimeType)
+            if (kind != null) {
+                result.success(mapOf("defaultChosen" to kind))
+            } else {
+                Log.w(TAG, "Muestra no reconocida en Intent inicial: ${request.uri}")
+                result.error("incoming_error", "No se pudo identificar el tipo de muestra", null)
+            }
+            return
+        }
         executor.execute {
             try {
                 val file = copyUriToCache(request.uri, request.mimeType)
@@ -129,6 +139,19 @@ class IncomingFiles(
     /** Procesa un nuevo Intent cuando la actividad ya está abierta (`singleTop`). */
     fun handleNewIntent(intent: Intent) {
         val request = extractRequest(intent) ?: return
+        if (isSampleUri(request.uri)) {
+            val kind = sampleKind(request.uri, request.mimeType)
+            if (kind != null) {
+                mainHandler.post {
+                    if (!disposed) {
+                        channel.invokeMethod("onDefaultChosen", mapOf("kind" to kind))
+                    }
+                }
+            } else {
+                Log.w(TAG, "Muestra no reconocida en onNewIntent: ${request.uri}")
+            }
+            return
+        }
         executor.execute {
             try {
                 val file = copyUriToCache(request.uri, request.mimeType)
@@ -153,6 +176,25 @@ class IncomingFiles(
         pendingPickResult = null
         channel.setMethodCallHandler(null)
         executor.shutdown()
+    }
+
+    private fun isSampleUri(uri: Uri): Boolean =
+        uri.scheme == ContentResolver.SCHEME_CONTENT &&
+            uri.authority == "${activity.packageName}.muestras"
+
+    private fun sampleKind(uri: Uri, fallbackMime: String?): String? {
+        val ext = uri.lastPathSegment
+            ?.substringAfterLast('.', "")
+            ?.lowercase()
+            ?.takeIf { it.isNotEmpty() }
+            ?: extensionForMime(activity.contentResolver.getType(uri) ?: fallbackMime)
+        return when (ext) {
+            "pdf" -> "pdf"
+            "docx", "docm", "dotx" -> "word"
+            "xlsx", "xlsm", "xls", "csv" -> "excel"
+            "pptx", "ppsx", "pptm" -> "powerpoint"
+            else -> null
+        }
     }
 
     private data class IncomingRequest(val uri: Uri, val mimeType: String?)
