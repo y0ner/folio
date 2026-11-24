@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'core/app_scope.dart';
 import 'core/theme/folio_theme.dart';
 import 'features/home/home_screen.dart';
+import 'features/incoming/incoming_files_listener.dart';
 
 class FolioApp extends StatelessWidget {
   const FolioApp({super.key});
@@ -18,7 +19,7 @@ class FolioApp extends StatelessWidget {
         theme: FolioTheme.light(),
         darkTheme: FolioTheme.dark(),
         themeMode: settings.themeMode,
-        home: const HomeScreen(),
+        home: const IncomingFilesListener(child: HomeScreen()),
       ),
     );
   }

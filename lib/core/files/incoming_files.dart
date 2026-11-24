@@ -1,0 +1,120 @@
+import 'dart:async';
+
+import 'package:flutter/foundation.dart';
+import 'package:flutter/services.dart';
+
+/// Archivo recibido desde otra aplicación de Android.
+@immutable
+class IncomingFile {
+  const IncomingFile({required this.path, required this.name});
+
+  final String path;
+  final String name;
+
+  /// Crea un [IncomingFile] desde [map], o `null` si faltan `path` o `name`.
+  static IncomingFile? fromMap(Map<Object?, Object?>? map) {
+    if (map == null) return null;
+    final path = map['path'];
+    final name = map['name'];
+    if (path is! String || path.isEmpty || name is! String || name.isEmpty) {
+      return null;
+    }
+    return IncomingFile(path: path, name: name);
+  }
+
+  @override
+  bool operator ==(Object other) =>
+      other is IncomingFile && other.path == path && other.name == name;
+
+  @override
+  int get hashCode => Object.hash(path, name);
+}
+
+/// Puente con Android para recibir archivos de "Abrir con" y "Compartir".
+class IncomingFiles {
+  IncomingFiles({MethodChannel? channel})
+      : _channel = channel ?? _defaultChannel {
+    _channel.setMethodCallHandler(_handleCall);
+  }
+
+  static const MethodChannel _defaultChannel = MethodChannel('folio/incoming');
+
+  final MethodChannel _channel;
+  final StreamController<IncomingFile> _filesController =
+      StreamController<IncomingFile>.broadcast();
+  final StreamController<String> _errorsController =
+      StreamController<String>.broadcast();
+
+  /// Flujo de archivos recibidos mientras la app está abierta.
+  Stream<IncomingFile> get files => _filesController.stream;
+
+  /// Flujo de mensajes de error al recibir archivos desde Android.
+  Stream<String> get errors => _errorsController.stream;
+
+  /// Devuelve el archivo del Intent inicial (solo la primera vez) o `null`.
+  Future<IncomingFile?> initial() async {
+    try {
+      final raw = await _channel.invokeMethod<Object?>('getInitial');
+      if (raw == null) return null;
+      if (raw is Map<Object?, Object?>) {
+        final file = IncomingFile.fromMap(raw);
+        if (file == null) {
+          debugPrint('IncomingFiles.initial: datos incompletos ($raw)');
+          _emitError('No se pudo recibir el archivo');
+        }
+        return file;
+      }
+      debugPrint('IncomingFiles.initial: respuesta inesperada ($raw)');
+      _emitError('No se pudo recibir el archivo');
+      return null;
+    } on MissingPluginException catch (e) {
+      debugPrint('IncomingFiles.initial: canal no disponible ($e)');
+      return null;
+    } on PlatformException catch (e) {
+      debugPrint('IncomingFiles.initial: error nativo ($e)');
+      _emitError(e.message ?? 'No se pudo recibir el archivo');
+      return null;
+    }
+  }
+
+  Future<void> _handleCall(MethodCall call) async {
+    switch (call.method) {
+      case 'onFile':
+        final args = call.arguments;
+        final file =
+            args is Map<Object?, Object?> ? IncomingFile.fromMap(args) : null;
+        if (file != null) {
+          if (!_filesController.isClosed) _filesController.add(file);
+        } else {
+          debugPrint('IncomingFiles.onFile: datos incompletos ($args)');
+          _emitError('No se pudo recibir el archivo');
+        }
+      case 'onError':
+        final args = call.arguments;
+        final message = switch (args) {
+          Map() => args['message']?.toString(),
+          String() => args,
+          _ => null,
+        };
+        debugPrint('IncomingFiles.onError: $message');
+        _emitError(
+          (message != null && message.isNotEmpty)
+              ? message
+              : 'No se pudo recibir el archivo',
+        );
+    }
+  }
+
+  void _emitError(String message) {
+    if (!_errorsController.isClosed) {
+      _errorsController.add(message);
+    }
+  }
+
+  /// Libera los recursos del canal y cierra los flujos.
+  void dispose() {
+    _channel.setMethodCallHandler(null);
+    _filesController.close();
+    _errorsController.close();
+  }
+}

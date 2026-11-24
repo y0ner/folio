@@ -30,6 +30,36 @@ class ViewerFailure {
   final String? detail;
 }
 
+/// Búsqueda de texto que ofrece un cuerpo (hoy, el PDF).
+///
+/// La pantalla dibuja la barra de búsqueda y escucha este objeto; el cuerpo
+/// busca y resalta los resultados en el documento.
+abstract class ViewerSearch implements Listenable {
+  /// Texto buscado ('' si no hay búsqueda activa).
+  String get query;
+
+  /// `true` mientras se recorre el documento.
+  bool get isSearching;
+
+  /// Resultados encontrados hasta ahora.
+  int get matchCount;
+
+  /// Resultado actual, empezando en 0; -1 si no hay ninguno.
+  int get currentIndex;
+
+  /// Inicia una búsqueda nueva (vacía = limpiar).
+  void search(String query);
+
+  /// Va al resultado siguiente (vuelve al primero al final).
+  void next();
+
+  /// Va al resultado anterior (vuelve al último al principio).
+  void previous();
+
+  /// Quita la búsqueda y los resaltados.
+  void clear();
+}
+
 /// Contrato entre la pantalla del visor (barras, indicador, errores) y el
 /// cuerpo que dibuja cada tipo de documento (PDF, Word, Excel, PowerPoint).
 ///
@@ -47,6 +77,7 @@ class ViewerController extends ChangeNotifier {
 
   void Function(int page)? _onGoToPage;
   void Function(int section)? _onSelectSection;
+  ViewerSearch? _search;
 
   ViewerStatus get status => _status;
   ViewerFailure? get failure => _failure;
@@ -61,13 +92,20 @@ class ViewerController extends ChangeNotifier {
   List<String> get sections => _sections;
   int get currentSection => _currentSection;
 
-  /// El cuerpo registra cómo navegar. Llamar de nuevo reemplaza lo anterior.
+  /// Búsqueda de texto del cuerpo; `null` si el formato no la ofrece.
+  ViewerSearch? get search => _search;
+
+  /// El cuerpo registra cómo navegar y, si puede, su búsqueda. Llamar de
+  /// nuevo reemplaza todo lo anterior. Debe llamarse **antes** de [markReady]
+  /// (no notifica a los oyentes por sí mismo).
   void attach({
     void Function(int page)? onGoToPage,
     void Function(int section)? onSelectSection,
+    ViewerSearch? search,
   }) {
     _onGoToPage = onGoToPage;
     _onSelectSection = onSelectSection;
+    _search = search;
   }
 
   void markReady({int pageCount = 0, List<String> sections = const []}) {
