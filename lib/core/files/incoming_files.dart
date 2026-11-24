@@ -57,6 +57,36 @@ class IncomingFiles {
   /// Flujo de mensajes de error al recibir archivos desde Android.
   Stream<String> get errors => _errorsController.stream;
 
+  /// Abre el selector nativo de documentos en Android sin registrar handler
+  /// en el canal (para no pisar el listener de archivos entrantes).
+  static Future<IncomingFile?> pick({MethodChannel? channel}) async {
+    final target = channel ?? _defaultChannel;
+    try {
+      final raw = await target.invokeMethod<Object?>('pick');
+      if (raw == null) return null;
+      if (raw is Map<Object?, Object?>) {
+        final file = IncomingFile.fromMap(raw);
+        if (file == null) {
+          debugPrint('IncomingFiles.pick: datos incompletos ($raw)');
+          throw const FormatException('Datos incompletos del selector');
+        }
+        return file;
+      }
+      debugPrint('IncomingFiles.pick: respuesta inesperada ($raw)');
+      throw const FormatException('Respuesta inesperada del selector');
+    } on MissingPluginException catch (e) {
+      debugPrint('IncomingFiles.pick: canal no disponible ($e)');
+      return null;
+    } on PlatformException catch (e) {
+      if (e.code == 'busy') {
+        debugPrint('IncomingFiles.pick: selector ocupado (${e.message})');
+        return null;
+      }
+      debugPrint('IncomingFiles.pick: error nativo ($e)');
+      rethrow;
+    }
+  }
+
   /// Devuelve el archivo del Intent inicial (solo la primera vez) o `null`.
   Future<IncomingFile?> initial() async {
     try {

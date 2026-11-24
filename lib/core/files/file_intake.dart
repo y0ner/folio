@@ -1,11 +1,13 @@
 import 'dart:io';
 
 import 'package:file_picker/file_picker.dart';
+import 'package:flutter/foundation.dart';
 import 'package:path/path.dart' as p;
 import 'package:path_provider/path_provider.dart';
 
 import 'doc_kind.dart';
 import 'document_ref.dart';
+import 'incoming_files.dart';
 
 /// Resultado de intentar obtener un documento.
 sealed class IntakeResult {
@@ -30,10 +32,14 @@ class IntakeUnsupported extends IntakeResult {
 
 /// Obtiene documentos del sistema y los copia al almacenamiento de la app.
 class FileIntake {
-  FileIntake({Future<Directory> Function()? baseDir})
-      : _baseDir = baseDir ?? getApplicationSupportDirectory;
+  FileIntake({
+    Future<Directory> Function()? baseDir,
+    Future<IncomingFile?> Function()? nativePick,
+  })  : _baseDir = baseDir ?? getApplicationSupportDirectory,
+        _nativePick = nativePick ?? IncomingFiles.pick;
 
   final Future<Directory> Function() _baseDir;
+  final Future<IncomingFile?> Function() _nativePick;
 
   /// Carpeta donde viven las copias locales de los documentos.
   Future<Directory> documentsDir() async {
@@ -44,6 +50,9 @@ class FileIntake {
 
   /// Abre el selector de archivos del sistema.
   Future<IntakeResult> pick() async {
+    if (defaultTargetPlatform == TargetPlatform.android) {
+      return _pickNative();
+    }
     final file = await FilePicker.pickFile(
       type: FileType.custom,
       allowedExtensions: DocKind.allExtensions.toList(),
@@ -55,6 +64,31 @@ class FileIntake {
       name: file.name,
       sourceUri: rawUri.isEmpty ? null : rawUri,
     );
+  }
+
+  Future<IntakeResult> _pickNative() async {
+    final incoming = await _nativePick();
+    if (incoming == null) return const IntakeCancelled();
+    final source = File(incoming.path);
+    try {
+      return await importFile(
+        source,
+        name: incoming.name,
+        sourceUri: incoming.uri,
+      );
+    } finally {
+      await _deleteTempFile(source);
+    }
+  }
+
+  Future<void> _deleteTempFile(File file) async {
+    try {
+      if (await file.exists()) {
+        await file.delete();
+      }
+    } catch (e) {
+      debugPrint('No se pudo borrar copia temporal ${file.path}: $e');
+    }
   }
 
   /// Copia [source] a la carpeta de documentos y devuelve su referencia.
