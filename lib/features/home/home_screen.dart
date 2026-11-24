@@ -3,8 +3,10 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
 import 'package:share_plus/share_plus.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../core/app_scope.dart';
+import '../../core/defaults/default_apps.dart';
 import '../../core/files/doc_kind.dart';
 import '../../core/files/document_ref.dart';
 import '../../core/files/file_intake.dart';
@@ -14,28 +16,104 @@ import '../../core/theme/folio_tokens.dart';
 import '../../ui/empty_state.dart';
 import '../../ui/section_header.dart';
 import '../settings/settings_screen.dart';
+import 'defaults_banner.dart';
 import 'recent_groups.dart';
 import 'recent_tile.dart';
 import 'type_filter_bar.dart';
 
 /// Pantalla principal de Folio: búsqueda, filtros y lista de recientes.
 class HomeScreen extends StatefulWidget {
-  const HomeScreen({super.key});
+  const HomeScreen({super.key, this.defaultApps});
+
+  final DefaultApps? defaultApps;
 
   @override
   State<HomeScreen> createState() => _HomeScreenState();
 }
 
 class _HomeScreenState extends State<HomeScreen> {
+  static const String _defaultsDismissedKey = 'home.defaultsBannerDismissed';
+
   final TextEditingController _searchController = TextEditingController();
+  late final DefaultApps _defaultApps = widget.defaultApps ?? DefaultApps();
+  late final AppLifecycleListener _lifecycle;
   String _query = '';
   DocKind? _selectedKind;
   bool _picking = false;
+  bool _showDefaultsBanner = false;
+  bool _defaultsBannerDismissed = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _lifecycle = AppLifecycleListener(onResume: _refreshDefaultsBanner);
+    _loadDefaultsBanner();
+  }
 
   @override
   void dispose() {
+    _lifecycle.dispose();
     _searchController.dispose();
     super.dispose();
+  }
+
+  Future<void> _loadDefaultsBanner() async {
+    try {
+      final dismissed =
+          await SharedPreferencesAsync().getBool(_defaultsDismissedKey) ??
+              false;
+      if (!mounted) return;
+      if (dismissed) {
+        setState(() {
+          _defaultsBannerDismissed = true;
+          _showDefaultsBanner = false;
+        });
+        return;
+      }
+    } catch (e, st) {
+      debugPrint('HomeScreen: error leyendo preferencia de aviso: $e\n$st');
+    }
+    await _refreshDefaultsBanner();
+  }
+
+  Future<void> _refreshDefaultsBanner() async {
+    if (_defaultsBannerDismissed) return;
+    try {
+      final statuses = await _defaultApps.status();
+      if (!mounted || _defaultsBannerDismissed) return;
+      final shouldShow = statuses.isNotEmpty &&
+          statuses.any((s) => s.state != DefaultState.folio);
+      if (shouldShow != _showDefaultsBanner) {
+        setState(() => _showDefaultsBanner = shouldShow);
+      }
+    } catch (e, st) {
+      debugPrint(
+        'HomeScreen: error consultando apps predeterminadas: $e\n$st',
+      );
+    }
+  }
+
+  Future<void> _dismissDefaultsBanner() async {
+    setState(() {
+      _defaultsBannerDismissed = true;
+      _showDefaultsBanner = false;
+    });
+    try {
+      await SharedPreferencesAsync().setBool(_defaultsDismissedKey, true);
+    } catch (e, st) {
+      debugPrint('HomeScreen: error guardando cierre de aviso: $e\n$st');
+    }
+  }
+
+  Future<void> _openSettings() async {
+    await Navigator.of(context).push(
+      MaterialPageRoute<void>(
+        builder: (_) => SettingsScreen(defaultApps: widget.defaultApps),
+      ),
+    );
+    if (mounted) {
+      await _refreshDefaultsBanner();
+    }
   }
 
   Future<void> _pickFile() async {
@@ -162,13 +240,7 @@ class _HomeScreenState extends State<HomeScreen> {
                           ),
                         ),
                         IconButton(
-                          onPressed: () {
-                            Navigator.of(context).push(
-                              MaterialPageRoute<void>(
-                                builder: (_) => const SettingsScreen(),
-                              ),
-                            );
-                          },
+                          onPressed: _openSettings,
                           icon: const Icon(
                             LucideIcons.settings2,
                             size: FolioTokens.iconBar,
@@ -226,6 +298,21 @@ class _HomeScreenState extends State<HomeScreen> {
                     ),
                   ),
                 ),
+                if (_showDefaultsBanner)
+                  SliverPadding(
+                    padding: const EdgeInsets.fromLTRB(
+                      FolioTokens.gutter,
+                      FolioTokens.s8,
+                      FolioTokens.gutter,
+                      FolioTokens.s8,
+                    ),
+                    sliver: SliverToBoxAdapter(
+                      child: DefaultsBanner(
+                        onChoose: _openSettings,
+                        onDismiss: _dismissDefaultsBanner,
+                      ),
+                    ),
+                  ),
                 if (allItems.isEmpty)
                   SliverFillRemaining(
                     hasScrollBody: false,
