@@ -1,5 +1,6 @@
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:folio/core/files/doc_kind.dart';
 import 'package:folio/core/files/incoming_files.dart';
 
 void main() {
@@ -212,6 +213,47 @@ void main() {
         await futureFile,
         const IncomingFile(path: '/cache/incoming/nota.pdf', name: 'nota.pdf'),
       );
+    });
+
+    test('initial() emite en defaultChosen y devuelve null para muestras',
+        () async {
+      TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+          .setMockMethodCallHandler(channel, (call) async {
+        if (call.method == 'getInitial') {
+          return {'defaultChosen': 'pdf'};
+        }
+        return null;
+      });
+
+      final incoming = IncomingFiles(channel: channel);
+      addTearDown(incoming.dispose);
+
+      final futureChosen = incoming.defaultChosen.first;
+      expect(await incoming.initial(), isNull);
+      expect(await futureChosen, DocKind.pdf);
+    });
+
+    test('onDefaultChosen emite en el stream defaultChosen y no en files',
+        () async {
+      final incoming = IncomingFiles(channel: channel);
+      addTearDown(incoming.dispose);
+
+      final files = <IncomingFile>[];
+      final sub = incoming.files.listen(files.add);
+      addTearDown(sub.cancel);
+
+      final futureChosen = incoming.defaultChosen.first;
+      await TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+          .handlePlatformMessage(
+        channel.name,
+        const StandardMethodCodec().encodeMethodCall(
+          const MethodCall('onDefaultChosen', {'kind': 'powerpoint'}),
+        ),
+        (_) {},
+      );
+
+      expect(await futureChosen, DocKind.powerpoint);
+      expect(files, isEmpty);
     });
   });
 }

@@ -3,6 +3,8 @@ import 'dart:async';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 
+import 'doc_kind.dart';
+
 /// Archivo recibido desde otra aplicación de Android.
 @immutable
 class IncomingFile {
@@ -48,11 +50,16 @@ class IncomingFiles {
   final MethodChannel _channel;
   final StreamController<IncomingFile> _filesController =
       StreamController<IncomingFile>.broadcast();
+  final StreamController<DocKind> _defaultChosenController =
+      StreamController<DocKind>.broadcast();
   final StreamController<String> _errorsController =
       StreamController<String>.broadcast();
 
   /// Flujo de archivos recibidos mientras la app está abierta.
   Stream<IncomingFile> get files => _filesController.stream;
+
+  /// Flujo de tipos confirmados al elegir Folio como app predeterminada.
+  Stream<DocKind> get defaultChosen => _defaultChosenController.stream;
 
   /// Flujo de mensajes de error al recibir archivos desde Android.
   Stream<String> get errors => _errorsController.stream;
@@ -93,6 +100,17 @@ class IncomingFiles {
       final raw = await _channel.invokeMethod<Object?>('getInitial');
       if (raw == null) return null;
       if (raw is Map<Object?, Object?>) {
+        if (raw.containsKey('defaultChosen')) {
+          final kind = _parseDocKind(raw['defaultChosen']);
+          if (kind != null) {
+            if (!_defaultChosenController.isClosed) {
+              _defaultChosenController.add(kind);
+            }
+          } else {
+            debugPrint('IncomingFiles.initial: defaultChosen inválido ($raw)');
+          }
+          return null;
+        }
         final file = IncomingFile.fromMap(raw);
         if (file == null) {
           debugPrint('IncomingFiles.initial: datos incompletos ($raw)');
@@ -125,6 +143,17 @@ class IncomingFiles {
           debugPrint('IncomingFiles.onFile: datos incompletos ($args)');
           _emitError('No se pudo recibir el archivo');
         }
+      case 'onDefaultChosen':
+        final args = call.arguments;
+        final kind =
+            args is Map<Object?, Object?> ? _parseDocKind(args['kind']) : null;
+        if (kind != null) {
+          if (!_defaultChosenController.isClosed) {
+            _defaultChosenController.add(kind);
+          }
+        } else {
+          debugPrint('IncomingFiles.onDefaultChosen: datos inválidos ($args)');
+        }
       case 'onError':
         final args = call.arguments;
         final message = switch (args) {
@@ -141,6 +170,11 @@ class IncomingFiles {
     }
   }
 
+  DocKind? _parseDocKind(Object? raw) {
+    if (raw is! String) return null;
+    return DocKind.values.asNameMap()[raw];
+  }
+
   void _emitError(String message) {
     if (!_errorsController.isClosed) {
       _errorsController.add(message);
@@ -151,6 +185,7 @@ class IncomingFiles {
   void dispose() {
     _channel.setMethodCallHandler(null);
     _filesController.close();
+    _defaultChosenController.close();
     _errorsController.close();
   }
 }

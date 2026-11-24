@@ -4,6 +4,7 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 
 import '../../core/app_scope.dart';
+import '../../core/files/doc_kind.dart';
 import '../../core/files/file_intake.dart';
 import '../../core/files/incoming_files.dart';
 import '../../core/open_document.dart';
@@ -27,6 +28,7 @@ class _IncomingFilesListenerState extends State<IncomingFilesListener> {
   late final IncomingFiles _incoming;
   late final bool _ownsIncoming;
   StreamSubscription<IncomingFile>? _filesSub;
+  StreamSubscription<DocKind>? _defaultChosenSub;
   StreamSubscription<String>? _errorsSub;
 
   @override
@@ -37,6 +39,7 @@ class _IncomingFilesListenerState extends State<IncomingFilesListener> {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
       _filesSub = _incoming.files.listen(_handleFile);
+      _defaultChosenSub = _incoming.defaultChosen.listen(_handleDefaultChosen);
       _errorsSub = _incoming.errors.listen(_handleError);
       _checkInitial();
     });
@@ -45,6 +48,7 @@ class _IncomingFilesListenerState extends State<IncomingFilesListener> {
   @override
   void dispose() {
     _filesSub?.cancel();
+    _defaultChosenSub?.cancel();
     _errorsSub?.cancel();
     if (_ownsIncoming) {
       _incoming.dispose();
@@ -85,6 +89,11 @@ class _IncomingFilesListenerState extends State<IncomingFilesListener> {
     } finally {
       await _deleteTempFile(source);
     }
+  }
+
+  void _handleDefaultChosen(DocKind kind) {
+    if (!mounted) return;
+    _showSnackBar('Listo: Folio abrirá tus archivos ${kind.label}');
   }
 
   void _handleError(String message) {
