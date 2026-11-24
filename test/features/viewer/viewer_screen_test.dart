@@ -85,7 +85,9 @@ void main() {
     await tester.pumpWidget(
       wrap(
         ViewerScreen(
-          document: makeDoc(kind: DocKind.excel, name: 'ventas.xlsx'),
+          // La barra de secciones depende solo del controlador; se usa un PDF
+          // porque el cuerpo de Excel necesita la plataforma del WebView.
+          document: makeDoc(name: 'ventas.pdf'),
           controller: controller,
         ),
       ),
