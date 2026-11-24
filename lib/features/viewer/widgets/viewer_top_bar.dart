@@ -105,25 +105,25 @@ class ViewerTopBar extends StatelessWidget {
                       if (onSaveCopy != null)
                         const PopupMenuItem<_TopBarMenuAction>(
                           value: _TopBarMenuAction.saveCopy,
-                          child: Row(
-                            children: [
-                              Icon(
-                                LucideIcons.download,
-                                size: FolioTokens.iconList,
-                              ),
-                              SizedBox(width: FolioTokens.s12),
-                              Text('Guardar una copia…'),
-                            ],
+                          child: _MenuRow(
+                            icon: LucideIcons.download,
+                            label: 'Guardar una copia…',
                           ),
                         ),
                       const PopupMenuItem<_TopBarMenuAction>(
                         value: _TopBarMenuAction.info,
-                        child: Text('Información del archivo'),
+                        child: _MenuRow(
+                          icon: LucideIcons.info,
+                          label: 'Información del archivo',
+                        ),
                       ),
                       if (canGoToPage)
                         const PopupMenuItem<_TopBarMenuAction>(
                           value: _TopBarMenuAction.goToPage,
-                          child: Text('Ir a la página…'),
+                          child: _MenuRow(
+                            icon: LucideIcons.listOrdered,
+                            label: 'Ir a la página…',
+                          ),
                         ),
                     ],
                   ),
@@ -144,10 +144,8 @@ class _SmallDocBadge extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final labelStyle = Theme.of(context).textTheme.labelSmall?.copyWith(
-          color: kind.color(context),
-          fontWeight: FontWeight.w600,
-        );
+    final labelStyle = Theme.of(context).textTheme.labelSmall
+        ?.copyWith(color: kind.color(context), fontWeight: FontWeight.w600);
 
     return Container(
       width: 22,
@@ -160,12 +158,27 @@ class _SmallDocBadge extends StatelessWidget {
       ),
       child: FittedBox(
         fit: BoxFit.scaleDown,
-        child: Text(
-          kind.abbreviation,
-          style: labelStyle,
-          maxLines: 1,
-        ),
+        child: Text(kind.abbreviation, style: labelStyle, maxLines: 1),
       ),
+    );
+  }
+}
+
+/// Fila del menú ⋮: icono + texto que se ajusta si no cabe.
+class _MenuRow extends StatelessWidget {
+  const _MenuRow({required this.icon, required this.label});
+
+  final IconData icon;
+  final String label;
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      children: [
+        Icon(icon, size: FolioTokens.iconList),
+        const SizedBox(width: FolioTokens.s12),
+        Flexible(child: Text(label, overflow: TextOverflow.ellipsis)),
+      ],
     );
   }
 }
