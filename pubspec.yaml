@@ -76,6 +76,7 @@ flutter:
     - assets/engines/xlsx/
     - assets/engines/pptx/
     - assets/licenses/
+    - assets/samples/
 
   fonts:
     - family: Inter
