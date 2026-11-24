@@ -103,7 +103,8 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text('ABRIR DOCUMENTOS'), findsOneWidget);
-    expect(find.text('PDF'), findsOneWidget);
+    // «PDF» aparece en la insignia y como nombre del tipo.
+    expect(find.text('PDF'), findsNWidgets(2));
     expect(find.text('Word'), findsOneWidget);
     expect(find.text('Excel'), findsOneWidget);
     expect(find.text('PowerPoint'), findsOneWidget);
