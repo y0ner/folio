@@ -168,6 +168,9 @@ class _OfficeDocumentViewState extends State<OfficeDocumentView> {
                 source: 'window.folio && folio.goToPage($page)',
               );
             },
+            onSelectSection: (i) => _webController?.evaluateJavascript(
+              source: 'window.folio && folio.selectSheet($i)',
+            ),
           );
           webController.addJavaScriptHandler(
             handlerName: 'folio',
