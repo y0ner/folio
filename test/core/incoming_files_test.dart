@@ -137,5 +137,81 @@ void main() {
 
       expect(await futureError, 'Permiso denegado');
     });
+
+    test('pick() devuelve IncomingFile con uri cuando se elige un archivo', () async {
+      TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+          .setMockMethodCallHandler(channel, (call) async {
+        if (call.method == 'pick') {
+          return {
+            'path': '/cache/incoming/carta.docx',
+            'name': 'carta.docx',
+            'uri': 'file:///storage/emulated/0/Download/carta.docx',
+          };
+        }
+        return null;
+      });
+
+      final file = await IncomingFiles.pick();
+      expect(
+        file,
+        const IncomingFile(
+          path: '/cache/incoming/carta.docx',
+          name: 'carta.docx',
+          uri: 'file:///storage/emulated/0/Download/carta.docx',
+        ),
+      );
+    });
+
+    test('pick() devuelve null cuando el usuario cancela', () async {
+      TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+          .setMockMethodCallHandler(channel, (call) async => null);
+
+      expect(await IncomingFiles.pick(), isNull);
+    });
+
+    test('pick() devuelve null si el selector está ocupado (busy)', () async {
+      TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+          .setMockMethodCallHandler(channel, (call) async {
+        throw PlatformException(code: 'busy', message: 'Selector abierto');
+      });
+
+      expect(await IncomingFiles.pick(), isNull);
+    });
+
+    test('pick() propaga errores nativos distintos de busy', () async {
+      TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+          .setMockMethodCallHandler(channel, (call) async {
+        throw PlatformException(code: 'pick_error', message: 'Fallo al copiar');
+      });
+
+      await expectLater(IncomingFiles.pick(), throwsA(isA<PlatformException>()));
+    });
+
+    test('pick() no pisa el handler de una instancia activa de IncomingFiles', () async {
+      final incoming = IncomingFiles(channel: channel);
+      addTearDown(incoming.dispose);
+
+      TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+          .setMockMethodCallHandler(channel, (call) async => null);
+      expect(await IncomingFiles.pick(channel: channel), isNull);
+
+      final futureFile = incoming.files.first;
+      await TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+          .handlePlatformMessage(
+        channel.name,
+        const StandardMethodCodec().encodeMethodCall(
+          const MethodCall('onFile', {
+            'path': '/cache/incoming/nota.pdf',
+            'name': 'nota.pdf',
+          }),
+        ),
+        (_) {},
+      );
+
+      expect(
+        await futureFile,
+        const IncomingFile(path: '/cache/incoming/nota.pdf', name: 'nota.pdf'),
+      );
+    });
   });
 }
