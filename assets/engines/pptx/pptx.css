@@ -1,0 +1,51 @@
+.viewer {
+  width: 100%;
+  min-height: 100vh;
+  background-color: var(--canvas);
+}
+
+#viewer .pptx-preview-wrapper {
+  background: var(--canvas) !important;
+  width: 100% !important;
+  height: auto !important;
+  min-height: 100vh;
+  overflow: visible !important;
+  margin: 0 !important;
+  padding: 12px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+/* Ocultar controles propios de pptx-preview en modo lista. */
+#viewer .pptx-preview-wrapper-next,
+#viewer .pptx-preview-wrapper-prev,
+#viewer .pptx-preview-wrapper-pagination {
+  display: none !important;
+}
+
+.folio-slide-slot {
+  position: relative;
+  flex: 0 0 auto;
+  margin-bottom: 12px;
+  border-radius: 4px;
+  overflow: hidden;
+  background: #ffffff;
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.12);
+}
+
+.folio-slide-slot:last-child {
+  margin-bottom: 0;
+}
+
+#viewer .pptx-preview-slide-wrapper {
+  margin: 0 !important;
+  border-radius: 4px;
+  transform-origin: top left;
+}
+
+/* pptx-preview no resuelve las fuentes del tema (+mj-lt / +mn-lt) y deja el
+   texto sin familia: se usa Calibri (Carlito), la fuente por defecto de Office. */
+#viewer .pptx-preview-wrapper {
+  font-family: 'Calibri', 'Carlito', 'Liberation Sans', sans-serif;
+}

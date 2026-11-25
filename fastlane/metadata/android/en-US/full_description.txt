@@ -1,0 +1,23 @@
+Folio is a minimalist, read-only document viewer for Android. Open PDF, Word, Excel, and PowerPoint files completely offline with a clean "ink and paper" interface where the document comes first.
+
+Supported formats:
+- PDF (.pdf)
+- Word (.docx, .docm, .dotx)
+- Excel (.xlsx, .xlsm, .xls, .csv)
+- PowerPoint (.pptx, .ppsx, .pptm)
+
+Note: legacy binary formats (.doc and .ppt) are not supported.
+
+Key features:
+- Native PDF rendering powered by PDFium: pinch and double-tap zoom, text selection, internal links, password-protected files, and in-PDF text search with match counter and highlighting.
+- Word viewer with bundled fonts compatible with Calibri, Cambria, Arial, and Times.
+- Spreadsheet viewer with sticky headers, merged cells, sheet tabs, and smooth scrolling up to 20,000 rows.
+- PowerPoint viewer showing full-width slides with progressive loading.
+- Immersive reading mode (tap once to hide or show bars), floating page counter, and Go to Page.
+- Recent documents grouped by Today, This week, and Older, with accent-insensitive search and type filters.
+- Open files from the system picker or via "Open with" / "Share" from other apps, and set Folio as default per format in Settings.
+- View the real file path with one-tap copy, save a copy to another folder, or share.
+- Light, dark, and system themes.
+
+100% offline & private:
+Folio never connects to the internet, displays no ads, and collects no analytics or personal data. The INTERNET permission is only declared because Android's WebView requires it to instantiate for Office rendering; all external URLs are blocked.

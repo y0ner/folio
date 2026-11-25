@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -6,9 +8,12 @@ import 'core/app_scope.dart';
 import 'core/files/file_intake.dart';
 import 'core/files/recent_store.dart';
 import 'core/settings/settings_store.dart';
+import 'features/settings/licenses.dart';
+import 'features/viewer/office/webview_prewarm.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  registerAssetLicenses();
   final prefs = await SharedPreferencesWithCache.create(
     cacheOptions: const SharedPreferencesWithCacheOptions(),
   );
@@ -18,4 +23,12 @@ Future<void> main() async {
     intake: FileIntake(),
     child: const FolioApp(),
   ));
+  WidgetsBinding.instance.addPostFrameCallback((_) {
+    unawaited(
+      Future<void>.delayed(
+        const Duration(milliseconds: 1500),
+        prewarmWebView,
+      ),
+    );
+  });
 }
