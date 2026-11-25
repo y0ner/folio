@@ -1,0 +1,5 @@
+Lanzamiento inicial (v1.0.0):
+- Visor PDF nativo con zoom, selección de texto, enlaces, contraseña y búsqueda en el documento.
+- Visores sin conexión para Word (.docx/.docm/.dotx), Excel (.xlsx/.xlsm/.xls/.csv hasta 20 000 filas) y PowerPoint (.pptx/.ppsx/.pptm).
+- Modo inmersivo, indicador de página, ir a página, información con ruta real, guardar copia y compartir.
+- Recientes agrupados, búsqueda sin tildes, filtros por tipo, visor predeterminado y tema claro/oscuro.

@@ -1,0 +1,356 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Folio · Visor de documentos para Android</title>
+<meta name="description" content="Folio abre PDF, Word, Excel y PowerPoint al instante, sin conexión y sin anuncios. Código abierto bajo GPLv3.">
+<meta name="theme-color" content="#F7F7F5" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#0E0E10" media="(prefers-color-scheme: dark)">
+<link rel="icon" type="image/png" href="/img/favicon.png">
+<link rel="apple-touch-icon" href="/img/icon.png">
+<meta property="og:type" content="website">
+<meta property="og:title" content="Folio · Visor de documentos para Android">
+<meta property="og:description" content="PDF, Word, Excel y PowerPoint al instante, sin conexión y sin anuncios. Código abierto.">
+<meta property="og:image" content="https://folio-visor.vercel.app/img/og.png">
+<meta property="og:url" content="https://folio-visor.vercel.app/">
+<meta name="twitter:card" content="summary_large_image">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap">
+<style>
+/* Layout: columna de 1120px; héroe con texto + dos teléfonos, franjas alternas papel / tinta, un bloque de descarga tipo "ficha técnica". */
+:root{
+  --paper:#F7F7F5; --surface:#FFFFFF; --muted:#F0F0EE; --line:#E6E6E3;
+  --ink:#1A1A1A; --ink-2:#6B6B6B; --ink-3:#9A9A9A; --on-ink:#FFFFFF;
+  --accent:#3B6CF6; --band:#141416; --band-line:#2A2A2F; --band-text:#EDEDEF; --band-text-2:#A0A0A8;
+  --pdf:#E5484D; --word:#3E63DD; --excel:#30A46C; --ppt:#F76B15;
+  --shadow:0 24px 60px rgba(20,20,22,.16);
+  --sans:"Inter",system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
+  --mono:"JetBrains Mono",ui-monospace,Menlo,monospace;
+}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){
+  --paper:#0E0E10; --surface:#17171A; --muted:#1F1F23; --line:#2A2A2F;
+  --ink:#EDEDEF; --ink-2:#A0A0A8; --ink-3:#6E6E76; --on-ink:#0E0E10;
+  --accent:#6E92FF; --band:#08080A; --band-line:#232328; --shadow:0 24px 60px rgba(0,0,0,.5); color-scheme:dark}}
+:root[data-theme="dark"]{
+  --paper:#0E0E10; --surface:#17171A; --muted:#1F1F23; --line:#2A2A2F;
+  --ink:#EDEDEF; --ink-2:#A0A0A8; --ink-3:#6E6E76; --on-ink:#0E0E10;
+  --accent:#6E92FF; --band:#08080A; --band-line:#232328; --shadow:0 24px 60px rgba(0,0,0,.5); color-scheme:dark}
+
+*{box-sizing:border-box}
+html{scroll-behavior:smooth}
+@media (prefers-reduced-motion:reduce){html{scroll-behavior:auto}*{transition:none!important;animation:none!important}}
+body{margin:0;background:var(--paper);color:var(--ink);font-family:var(--sans);font-size:16px;line-height:1.55;-webkit-font-smoothing:antialiased}
+a{color:inherit}
+img{max-width:100%;display:block}
+.wrap{max-width:1120px;margin:0 auto;padding-left:max(20px,env(safe-area-inset-left,0px));padding-right:max(20px,env(safe-area-inset-right,0px))}
+h1,h2,h3{margin:0;text-wrap:balance;letter-spacing:-.025em}
+p{margin:0}
+.eyebrow{font:500 12px/1 var(--mono);letter-spacing:.08em;text-transform:uppercase;color:var(--ink-3)}
+:focus-visible{outline:2px solid var(--accent);outline-offset:3px;border-radius:6px}
+
+/* Navegación */
+body::before{content:"";position:fixed;inset:0 0 auto;height:env(safe-area-inset-top,0px);z-index:20;background:var(--paper)}
+.nav{position:sticky;top:env(safe-area-inset-top,0px);z-index:10;background:color-mix(in srgb,var(--paper) 86%,transparent);backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px);border-bottom:1px solid var(--line)}
+.nav .wrap{display:flex;align-items:center;gap:20px;height:60px}
+.logo{display:flex;align-items:center;gap:10px;text-decoration:none;font-weight:700;font-size:18px;letter-spacing:-.02em}
+.logo img{width:28px;height:28px;border-radius:7px}
+.nav-links{display:flex;gap:22px;margin-left:auto;font-size:14px;color:var(--ink-2)}
+.nav-links a{text-decoration:none}.nav-links a:hover{color:var(--ink)}
+.lang{display:flex;border:1px solid var(--line);border-radius:999px;overflow:hidden;font:500 12px/1 var(--sans)}
+.lang button{all:unset;cursor:pointer;padding:7px 10px;color:var(--ink-2)}
+.lang button[aria-pressed="true"]{background:var(--ink);color:var(--on-ink)}
+@media (max-width:720px){.nav-links{display:none}.lang{margin-left:auto}}
+
+/* Botones */
+.btn{display:inline-flex;align-items:center;gap:10px;padding:13px 20px;border-radius:999px;font:600 15px/1 var(--sans);text-decoration:none;border:1px solid transparent;transition:transform .15s ease}
+.btn:hover{transform:translateY(-1px)}
+.btn-ink{background:var(--ink);color:var(--on-ink)}
+.btn-line{border-color:var(--line);background:var(--surface);color:var(--ink)}
+.btn svg{width:18px;height:18px;stroke:currentColor;fill:none;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
+
+/* Héroe */
+.hero .wrap{display:grid;grid-template-columns:1.05fr .95fr;gap:40px;align-items:center;padding-block:72px 56px}
+.hero h1{font-size:clamp(40px,6.2vw,72px);line-height:1.02;font-weight:800;letter-spacing:-.045em}
+.hero h1 .types{display:block;color:var(--ink-3)}
+.hero h1 .t{white-space:nowrap}
+.hero h1 .t-pdf{color:var(--pdf)}.hero h1 .t-word{color:var(--word)}.hero h1 .t-excel{color:var(--excel)}.hero h1 .t-ppt{color:var(--ppt)}
+.lead{font-size:clamp(17px,1.6vw,19px);color:var(--ink-2);max-width:34em;margin-top:22px}
+.cta{display:flex;flex-wrap:wrap;gap:12px;margin-top:30px}
+.meta{display:flex;flex-wrap:wrap;gap:8px 18px;margin-top:22px;font:500 13px/1.4 var(--mono);color:var(--ink-3)}
+.meta span{display:inline-flex;align-items:center;gap:7px}
+.meta span::before{content:"";width:5px;height:5px;border-radius:50%;background:var(--ink-3)}
+.stage{position:relative;height:560px}
+.phone{position:absolute;width:248px;border-radius:34px;padding:7px;background:#1b1b1d;box-shadow:var(--shadow),0 0 0 1px var(--band-line)}
+.phone img{border-radius:28px;width:100%}
+.ph-a{left:4%;top:34px;transform:rotate(-5deg)}
+.ph-b{right:4%;top:0;transform:rotate(4deg)}
+.tab{position:absolute;height:34px;border-radius:9px 9px 0 0;font:700 13px/34px var(--sans);letter-spacing:.04em;color:#fff;padding:0 14px}
+@media (max-width:900px){.hero .wrap{grid-template-columns:1fr;padding-block:48px 24px}.stage{height:470px;max-width:460px;margin:0 auto;width:100%}.phone{width:210px}}
+@media (max-width:460px){.stage{height:400px}.phone{width:176px}}
+
+/* Franja de formatos */
+.formats{padding-block:72px;border-top:1px solid var(--line)}
+.sec-head{display:flex;flex-direction:column;gap:12px;max-width:640px;margin-bottom:40px}
+.sec-head h2{font-size:clamp(28px,3.6vw,40px);line-height:1.1;font-weight:700}
+.sec-head p{color:var(--ink-2);font-size:17px}
+.fgrid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:16px}
+.fcard{background:var(--surface);border:1px solid var(--line);border-radius:18px;padding:22px;display:flex;flex-direction:column;gap:14px;min-width:0}
+.badge{width:48px;height:48px;border-radius:12px;display:grid;place-items:center;font:800 12px/1 var(--sans);letter-spacing:.03em;position:relative;overflow:hidden}
+.badge::before{content:"";position:absolute;inset:0;background:currentColor;opacity:.13}
+.fcard h3{font-size:20px;font-weight:700}
+.ext{font:500 12px/1.5 var(--mono);color:var(--ink-3)}
+.fcard ul{margin:0;padding:0;list-style:none;display:flex;flex-direction:column;gap:8px;font-size:14.5px;color:var(--ink-2)}
+.fcard li{display:flex;gap:9px}
+.fcard li::before{content:"";flex:none;width:6px;height:6px;border-radius:50%;margin-top:.55em;background:currentColor;opacity:.5}
+.engine{margin-top:auto;padding-top:12px;border-top:1px solid var(--line);font:500 12px/1.4 var(--mono);color:var(--ink-3)}
+@media (max-width:900px){.fgrid{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media (max-width:520px){.fgrid{grid-template-columns:1fr}}
+
+/* Franja oscura */
+.band{background:var(--band);color:var(--band-text)}
+.band .wrap{display:grid;grid-template-columns:.9fr 1.1fr;gap:56px;align-items:center;padding-block:88px}
+.band .eyebrow{color:var(--band-text-2)}
+.band h2{font-size:clamp(28px,3.6vw,40px);line-height:1.1;font-weight:700;margin-top:12px}
+.band p.sub{color:var(--band-text-2);font-size:17px;margin-top:16px}
+.feats{display:grid;grid-template-columns:1fr 1fr;gap:22px 28px;margin-top:34px}
+.feat b{display:block;font-size:15px;font-weight:600;margin-bottom:4px}
+.feat span{color:var(--band-text-2);font-size:14.5px}
+.duo{display:flex;gap:18px;justify-content:center}
+.duo .phone{position:relative;width:240px;transform:none;background:#000;box-shadow:0 0 0 1px var(--band-line),0 30px 70px rgba(0,0,0,.6)}
+.duo .phone:last-child{margin-top:56px}
+@media (max-width:900px){.band .wrap{grid-template-columns:1fr}.duo .phone{width:46%}}
+
+/* Galería */
+.gallery{padding-block:80px 64px}
+.strip{display:flex;gap:16px;overflow-x:auto;scroll-snap-type:x mandatory;padding-bottom:14px;scrollbar-width:thin}
+.strip figure{flex:none;width:220px;margin:0;scroll-snap-align:start;display:flex;flex-direction:column;gap:10px}
+.strip img{border-radius:22px;border:1px solid var(--line);background:var(--surface)}
+.strip figcaption{font-size:13px;color:var(--ink-2)}
+
+/* Privacidad */
+.privacy{padding-block:24px 80px}
+.pgrid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:1px;background:var(--line);border:1px solid var(--line);border-radius:18px;overflow:hidden}
+.pcell{background:var(--surface);padding:26px;display:flex;flex-direction:column;gap:8px;min-width:0}
+.pcell .k{font:700 30px/1 var(--sans);letter-spacing:-.03em}
+.pcell p{color:var(--ink-2);font-size:14.5px}
+.note{margin-top:16px;font-size:13.5px;color:var(--ink-3);max-width:70ch}
+@media (max-width:760px){.pgrid{grid-template-columns:1fr}}
+
+/* Descarga */
+.download{padding-block:0 96px}
+.dl{background:var(--surface);border:1px solid var(--line);border-radius:24px;display:grid;grid-template-columns:1fr 1fr;overflow:hidden}
+.dl-main{padding:40px;display:flex;flex-direction:column;gap:18px;min-width:0}
+.dl-main h2{font-size:clamp(28px,3.4vw,38px);font-weight:700;line-height:1.1}
+.dl-main p{color:var(--ink-2)}
+.spec{border-left:1px solid var(--line);padding:32px 40px;display:flex;flex-direction:column;min-width:0;background:var(--muted)}
+.spec dl{margin:0;display:grid;grid-template-columns:auto 1fr;gap:12px 24px;font-size:14.5px}
+.spec dt{color:var(--ink-3)}
+.spec dd{margin:0;font-weight:600;font-variant-numeric:tabular-nums}
+.hash{margin-top:22px;display:flex;flex-direction:column;gap:8px}
+.hash code{font:400 11.5px/1.55 var(--mono);color:var(--ink-2);word-break:break-all;background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:10px 12px}
+.copy{all:unset;cursor:pointer;align-self:flex-start;font:600 13px/1 var(--sans);color:var(--accent);padding:4px 0}
+@media (max-width:860px){.dl{grid-template-columns:1fr}.spec{border-left:0;border-top:1px solid var(--line)}.dl-main,.spec{padding:28px 22px}}
+
+footer{border-top:1px solid var(--line)}
+footer .wrap{display:flex;flex-wrap:wrap;gap:12px 24px;align-items:center;justify-content:space-between;padding-block:28px;font-size:14px;color:var(--ink-2)}
+footer a{text-decoration:none}footer a:hover{color:var(--ink)}
+</style>
+</head>
+<body>
+<header class="nav">
+  <div class="wrap">
+    <a class="logo" href="#inicio"><img src="img/icon.png" alt="">Folio</a>
+    <nav class="nav-links">
+      <a href="#formatos" data-i18n="nav.formats">Formatos</a>
+      <a href="#capturas" data-i18n="nav.shots">Capturas</a>
+      <a href="#privacidad" data-i18n="nav.privacy">Privacidad</a>
+      <a href="#descargar" data-i18n="nav.download">Descargar</a>
+      <a href="https://github.com/y0ner/folio">GitHub</a>
+    </nav>
+    <div class="lang" role="group" aria-label="Idioma">
+      <button id="lang-es" type="button" aria-pressed="true">ES</button>
+      <button id="lang-en" type="button" aria-pressed="false">EN</button>
+    </div>
+  </div>
+</header>
+
+<main id="inicio">
+  <section class="hero">
+    <div class="wrap">
+      <div>
+        <p class="eyebrow" data-i18n="hero.eyebrow">Visor de documentos para Android · v1.0.0</p>
+        <h1 style="margin-top:18px"><span data-i18n="hero.title">Tus documentos, sin ruido.</span>
+          <span class="types"><span class="t t-pdf">PDF</span>, <span class="t t-word">Word</span>, <span class="t t-excel">Excel</span> <span data-i18n="hero.and">y</span> <span class="t t-ppt">PowerPoint</span>.</span></h1>
+        <p class="lead" data-i18n="hero.lead">Folio abre tus archivos al instante, sin conexión y sin anuncios. Una interfaz de tinta y papel donde el documento siempre está primero.</p>
+        <div class="cta">
+          <a class="btn btn-ink" href="https://github.com/y0ner/folio/releases/latest/download/folio-v1.0.0-arm64.apk">
+            <svg viewBox="0 0 24 24"><path d="M12 3v12m0 0-5-5m5 5 5-5M5 21h14"/></svg><span data-i18n="cta.download">Descargar APK</span></a>
+          <a class="btn btn-line" href="https://github.com/y0ner/folio">
+            <svg viewBox="0 0 24 24"><path d="M9 19c-4 1.4-4-2-6-2.5m12 5v-3.5c0-1 .1-1.4-.5-2 2.8-.3 5.5-1.4 5.5-6a4.6 4.6 0 0 0-1.3-3.2 4.2 4.2 0 0 0-.1-3.2s-1-.3-3.4 1.3a11.6 11.6 0 0 0-6 0C6.8 2.3 5.8 2.6 5.8 2.6a4.2 4.2 0 0 0-.1 3.2A4.6 4.6 0 0 0 4.4 9c0 4.6 2.7 5.7 5.5 6-.6.6-.6 1.2-.5 2V21"/></svg><span data-i18n="cta.source">Código fuente</span></a>
+        </div>
+        <div class="meta"><span>Android 7.0+</span><span>34 MB</span><span data-i18n="meta.offline">100 % sin conexión</span><span>GPLv3</span></div>
+      </div>
+      <div class="stage" aria-hidden="true">
+        <div class="phone ph-a"><img src="img/s1.webp" alt=""></div>
+        <div class="phone ph-b"><img src="img/s2.webp" alt=""></div>
+      </div>
+    </div>
+  </section>
+
+  <section class="formats" id="formatos">
+    <div class="wrap">
+      <div class="sec-head">
+        <p class="eyebrow" data-i18n="fmt.eyebrow">Cuatro formatos, una app</p>
+        <h2 data-i18n="fmt.title">Cada tipo de archivo con el motor que mejor lo muestra</h2>
+        <p data-i18n="fmt.lead">El PDF se dibuja de forma nativa con PDFium. Word, Excel y PowerPoint usan motores empaquetados dentro de la app, así que nada sale del teléfono.</p>
+      </div>
+      <div class="fgrid">
+        <article class="fcard"><span class="badge" style="color:var(--pdf)">PDF</span><h3>PDF</h3><p class="ext">.pdf</p>
+          <ul><li data-i18n="pdf.1">Zoom con pellizco y doble toque</li><li data-i18n="pdf.2">Búsqueda con resaltado y contador</li><li data-i18n="pdf.3">Selección de texto y enlaces</li><li data-i18n="pdf.4">PDF protegidos con contraseña</li></ul><p class="engine">PDFium · pdfrx</p></article>
+        <article class="fcard"><span class="badge" style="color:var(--word)">DOC</span><h3>Word</h3><p class="ext">.docx .docm .dotx</p>
+          <ul><li data-i18n="word.1">Páginas fieles al original</li><li data-i18n="word.2">Tablas, imágenes y viñetas</li><li data-i18n="word.3">Fuentes compatibles con Calibri, Cambria y Arial</li></ul><p class="engine">docx-preview 0.4.1</p></article>
+        <article class="fcard"><span class="badge" style="color:var(--excel)">XLS</span><h3>Excel</h3><p class="ext">.xlsx .xlsm .xls .csv</p>
+          <ul><li data-i18n="xls.1">Pestañas de hojas abajo</li><li data-i18n="xls.2">Encabezados fijos y celdas combinadas</li><li data-i18n="xls.3">Hojas de hasta 20 000 filas, fluidas</li></ul><p class="engine">SheetJS CE 0.20.3</p></article>
+        <article class="fcard"><span class="badge" style="color:var(--ppt)">PPT</span><h3>PowerPoint</h3><p class="ext">.pptx .ppsx .pptm</p>
+          <ul><li data-i18n="ppt.1">Diapositivas a lo ancho</li><li data-i18n="ppt.2">Indicador «3 / 24» e ir a diapositiva</li><li data-i18n="ppt.3">Carga progresiva de presentaciones largas</li></ul><p class="engine">pptx-preview 1.0.7</p></article>
+      </div>
+    </div>
+  </section>
+
+  <section class="band">
+    <div class="wrap">
+      <div>
+        <p class="eyebrow" data-i18n="band.eyebrow">Hecho para leer</p>
+        <h2 data-i18n="band.title">Un toque y la interfaz desaparece</h2>
+        <p class="sub" data-i18n="band.lead">Folio esconde las barras cuando lees y las trae de vuelta cuando las necesitas. En claro o en oscuro, el documento ocupa toda la pantalla.</p>
+        <div class="feats">
+          <div class="feat"><b data-i18n="f1.t">Modo inmersivo</b><span data-i18n="f1.d">Toca el documento para ocultar las barras.</span></div>
+          <div class="feat"><b data-i18n="f2.t">Abrir con…</b><span data-i18n="f2.d">Desde WhatsApp, Gmail o el gestor de archivos.</span></div>
+          <div class="feat"><b data-i18n="f3.t">Visor predeterminado</b><span data-i18n="f3.d">Elige Folio para cada tipo en dos toques.</span></div>
+          <div class="feat"><b data-i18n="f4.t">Ruta real y copias</b><span data-i18n="f4.d">Mira dónde está el archivo y guarda una copia.</span></div>
+        </div>
+      </div>
+      <div class="duo" aria-hidden="true">
+        <div class="phone"><img src="img/extra-pdf-oscuro.webp" alt=""></div>
+        <div class="phone"><img src="img/extra-pptx-oscuro.webp" alt=""></div>
+      </div>
+    </div>
+  </section>
+
+  <section class="gallery" id="capturas">
+    <div class="wrap">
+      <div class="sec-head"><p class="eyebrow" data-i18n="gal.eyebrow">Capturas</p><h2 data-i18n="gal.title">Así se ve en un celular real</h2></div>
+      <div class="strip" tabindex="0" aria-label="Capturas de Folio">
+        <figure><img src="img/s1.webp" alt="Inicio con recientes" loading="lazy"><figcaption data-i18n="cap.1">Inicio y recientes</figcaption></figure>
+        <figure><img src="img/s2.webp" alt="Visor PDF" loading="lazy"><figcaption data-i18n="cap.2">Visor PDF</figcaption></figure>
+        <figure><img src="img/s3.webp" alt="Documento Word" loading="lazy"><figcaption data-i18n="cap.3">Documento Word</figcaption></figure>
+        <figure><img src="img/s4.webp" alt="Hoja de Excel" loading="lazy"><figcaption data-i18n="cap.4">Excel con pestañas</figcaption></figure>
+        <figure><img src="img/s5.webp" alt="Presentación" loading="lazy"><figcaption data-i18n="cap.5">PowerPoint</figcaption></figure>
+        <figure><img src="img/s6.webp" alt="Búsqueda en PDF" loading="lazy"><figcaption data-i18n="cap.6">Búsqueda en el PDF</figcaption></figure>
+        <figure><img src="img/s7.webp" alt="Ajustes" loading="lazy"><figcaption data-i18n="cap.7">Visor predeterminado</figcaption></figure>
+        <figure><img src="img/s8.webp" alt="Tema oscuro" loading="lazy"><figcaption data-i18n="cap.8">Tema oscuro</figcaption></figure>
+      </div>
+    </div>
+  </section>
+
+  <section class="privacy" id="privacidad">
+    <div class="wrap">
+      <div class="sec-head"><p class="eyebrow" data-i18n="prv.eyebrow">Privacidad</p><h2 data-i18n="prv.title">Tus archivos no salen del teléfono</h2></div>
+      <div class="pgrid">
+        <div class="pcell"><span class="k">0</span><p data-i18n="prv.1">conexiones a internet: todo se abre desde la propia app.</p></div>
+        <div class="pcell"><span class="k">0</span><p data-i18n="prv.2">datos recopilados, cuentas o anuncios.</p></div>
+        <div class="pcell"><span class="k">GPLv3</span><p data-i18n="prv.3">código abierto: cualquiera puede revisarlo y mejorarlo.</p></div>
+      </div>
+      <p class="note" data-i18n="prv.note">Android exige el permiso de internet para crear el visor web que usan Word, Excel y PowerPoint. Folio lo declara, pero bloquea cualquier dirección externa.</p>
+    </div>
+  </section>
+
+  <section class="download" id="descargar">
+    <div class="wrap">
+      <div class="dl">
+        <div class="dl-main">
+          <p class="eyebrow" data-i18n="dl.eyebrow">Versión actual</p>
+          <h2 data-i18n="dl.title">Folio 1.0.0</h2>
+          <p data-i18n="dl.lead">Descarga la APK desde GitHub e instálala. Luego, en Ajustes → Abrir documentos, deja Folio como visor predeterminado.</p>
+          <div class="cta" style="margin-top:4px">
+            <a class="btn btn-ink" href="https://github.com/y0ner/folio/releases/latest/download/folio-v1.0.0-arm64.apk"><svg viewBox="0 0 24 24"><path d="M12 3v12m0 0-5-5m5 5 5-5M5 21h14"/></svg><span data-i18n="cta.download">Descargar APK</span></a>
+            <a class="btn btn-line" href="https://github.com/y0ner/folio/releases" data-i18n="dl.notes">Notas de la versión</a>
+          </div>
+        </div>
+        <div class="spec">
+          <dl>
+            <dt data-i18n="sp.ver">Versión</dt><dd>1.0.0</dd>
+            <dt data-i18n="sp.date">Publicada</dt><dd data-i18n="sp.dateval">24 nov 2026</dd>
+            <dt data-i18n="sp.size">Tamaño</dt><dd>34 MB · arm64</dd>
+            <dt data-i18n="sp.req">Requiere</dt><dd>Android 7.0+</dd>
+            <dt data-i18n="sp.lic">Licencia</dt><dd>GNU GPL v3</dd>
+          </dl>
+          <div class="hash">
+            <span class="eyebrow" data-i18n="sp.cert">Certificado de firma (SHA-256)</span>
+            <code id="sha">8E:1A:B0:DE:25:7E:BF:3D:FF:28:8B:0A:59:47:6E:C4:D9:93:EC:65:47:98:B3:53:BF:23:20:FD:E0:19:F8:E4</code>
+            <button class="copy" id="copy-sha" type="button" data-i18n="sp.copy">Copiar</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+</main>
+
+<footer>
+  <div class="wrap">
+    <span data-i18n="ft.made">Folio · hecho por y0ner · licencia GPLv3</span>
+    <span style="display:flex;gap:20px"><a href="https://github.com/y0ner/folio">GitHub</a><a href="https://github.com/y0ner/folio/releases" data-i18n="ft.rel">Versiones</a><a href="https://github.com/y0ner/folio/blob/main/LICENSE" data-i18n="ft.lic">Licencia</a></span>
+  </div>
+</footer>
+
+<script>
+const EN = {
+  "nav.formats":"Formats","nav.shots":"Screenshots","nav.privacy":"Privacy","nav.download":"Download",
+  "hero.eyebrow":"Document viewer for Android · v1.0.0","hero.title":"Your documents, without the noise.","hero.and":"and",
+  "hero.lead":"Folio opens your files instantly, offline and ad-free. An ink-and-paper interface where the document always comes first.",
+  "cta.download":"Download APK","cta.source":"Source code","meta.offline":"100% offline",
+  "fmt.eyebrow":"Four formats, one app","fmt.title":"Each file type with the engine that shows it best",
+  "fmt.lead":"PDFs are drawn natively with PDFium. Word, Excel and PowerPoint use engines bundled inside the app, so nothing leaves your phone.",
+  "pdf.1":"Pinch and double-tap zoom","pdf.2":"Search with highlights and a counter","pdf.3":"Text selection and links","pdf.4":"Password-protected PDFs",
+  "word.1":"Pages faithful to the original","word.2":"Tables, images and bullets","word.3":"Fonts compatible with Calibri, Cambria and Arial",
+  "xls.1":"Sheet tabs at the bottom","xls.2":"Sticky headers and merged cells","xls.3":"Smooth sheets of up to 20,000 rows",
+  "ppt.1":"Full-width slides","ppt.2":"“3 / 24” indicator and go to slide","ppt.3":"Progressive loading for long decks",
+  "band.eyebrow":"Made for reading","band.title":"One tap and the interface disappears",
+  "band.lead":"Folio hides its bars while you read and brings them back when you need them. Light or dark, the document fills the screen.",
+  "f1.t":"Immersive mode","f1.d":"Tap the document to hide the bars.","f2.t":"Open with…","f2.d":"From WhatsApp, Gmail or your file manager.",
+  "f3.t":"Default viewer","f3.d":"Make Folio the default for each type in two taps.","f4.t":"Real path and copies","f4.d":"See where a file lives and save a copy.",
+  "gal.eyebrow":"Screenshots","gal.title":"How it looks on a real phone",
+  "cap.1":"Home and recents","cap.2":"PDF viewer","cap.3":"Word document","cap.4":"Excel with tabs","cap.5":"PowerPoint","cap.6":"Search inside a PDF","cap.7":"Default viewer","cap.8":"Dark theme",
+  "prv.eyebrow":"Privacy","prv.title":"Your files never leave your phone",
+  "prv.1":"internet connections: everything opens from the app itself.","prv.2":"data collected, accounts or ads.","prv.3":"open source: anyone can review and improve it.",
+  "prv.note":"Android requires the internet permission to create the web view used by Word, Excel and PowerPoint. Folio declares it but blocks every external address.",
+  "dl.eyebrow":"Current version","dl.title":"Folio 1.0.0","dl.lead":"Download the APK from GitHub and install it. Then, in Settings → Open documents, set Folio as your default viewer.",
+  "dl.notes":"Release notes","sp.ver":"Version","sp.date":"Released","sp.dateval":"Nov 24, 2026","sp.size":"Size","sp.req":"Requires","sp.lic":"License",
+  "sp.cert":"Signing certificate (SHA-256)","sp.copy":"Copy","ft.made":"Folio · made by y0ner · GPLv3 license","ft.rel":"Releases","ft.lic":"License"
+};
+const nodes = [...document.querySelectorAll("[data-i18n]")];
+const ES = Object.fromEntries(nodes.map(n => [n.dataset.i18n, n.textContent]));
+function setLang(lang){
+  const dict = lang === "en" ? EN : ES;
+  nodes.forEach(n => { const v = dict[n.dataset.i18n]; if (v) n.textContent = v; });
+  document.documentElement.lang = lang;
+  document.getElementById("lang-es").setAttribute("aria-pressed", lang === "es");
+  document.getElementById("lang-en").setAttribute("aria-pressed", lang === "en");
+  try { localStorage.setItem("folio-lang", lang); } catch (e) {}
+}
+document.getElementById("lang-es").addEventListener("click", () => setLang("es"));
+document.getElementById("lang-en").addEventListener("click", () => setLang("en"));
+let saved = null; try { saved = localStorage.getItem("folio-lang"); } catch (e) {}
+setLang(saved || ((navigator.language || "es").toLowerCase().startsWith("es") ? "es" : "en"));
+document.getElementById("copy-sha").addEventListener("click", async (ev) => {
+  const btn = ev.currentTarget, code = document.getElementById("sha");
+  const done = document.documentElement.lang === "en" ? "Copied" : "Copiado";
+  try { await navigator.clipboard.writeText(code.textContent); btn.textContent = done; }
+  catch (e) { const r = document.createRange(); r.selectNodeContents(code); const s = getSelection(); s.removeAllRanges(); s.addRange(r); }
+});
+</script>
+
+</body>
+</html>
