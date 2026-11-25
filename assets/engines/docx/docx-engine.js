@@ -69,6 +69,49 @@
     }
   });
 
+  // Word dibuja las viñetas con caracteres privados (U+F0xx) de las fuentes
+  // Symbol y Wingdings, que Android no tiene: salen como "□". docx-preview los
+  // deja en reglas ::before; aquí se cambian por su equivalente Unicode.
+  const SYMBOL_BULLETS = {
+    '': '•', // Symbol: •
+    '': '▪', // Wingdings: ▪
+    '': '■', // Wingdings: ■
+    '': '❑', // Wingdings: ❑
+    '': '◆', // Wingdings: ◆
+    '': '❖', // Wingdings: ❖
+    '': '□', // Wingdings: □
+    '': '➢', // Wingdings: ➢
+    '': '✓', // Wingdings: ✓
+    '': '−', // Symbol: −
+  };
+  const PRIVATE_GLYPH = /[-]/g;
+
+  function fixSymbolBullets() {
+    for (const sheet of Array.from(document.styleSheets)) {
+      let rules;
+      try {
+        rules = sheet.cssRules;
+      } catch (err) {
+        console.warn('Folio: hoja de estilos ilegible', err);
+        continue;
+      }
+      for (const rule of Array.from(rules)) {
+        const style = rule.style;
+        if (!style || !style.content || !PRIVATE_GLYPH.test(style.content)) {
+          PRIVATE_GLYPH.lastIndex = 0;
+          continue;
+        }
+        PRIVATE_GLYPH.lastIndex = 0;
+        const fixed = style.content.replace(
+          PRIVATE_GLYPH,
+          (ch) => SYMBOL_BULLETS[ch] || '•'
+        );
+        style.setProperty('content', fixed);
+        style.setProperty('font-family', 'inherit');
+      }
+    }
+  }
+
   function wrapPages() {
     const pages = Array.from(container.querySelectorAll('section.docx'));
     pageSlots = pages.map((page) => {
@@ -131,6 +174,7 @@
         await document.fonts.ready;
       }
 
+      fixSymbolBullets();
       wrapPages();
       fitToWidth();
       window.folio.observePages(pageSlots.map((item) => item.slot));
