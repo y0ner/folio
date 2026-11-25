@@ -1,0 +1,5 @@
+Initial release (v1.0.0):
+- Native PDF viewer with zoom, text selection, links, password support, and in-PDF search.
+- Offline Word (.docx/.docm/.dotx), Excel (.xlsx/.xlsm/.xls/.csv up to 20,000 rows), and PowerPoint (.pptx/.ppsx/.pptm) viewers.
+- Immersive mode, page indicator, Go to Page, file info with real path, Save a copy, and sharing.
+- Grouped recents, accent-insensitive search, type filters, default app settings, and light/dark themes.
