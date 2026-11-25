@@ -32,3 +32,4 @@
 ## Qué se probará en el celular (humano)
 
 Hoja de 20 000 filas: deslizar rápido hasta abajo y arriba sin pantalla blanca prolongada, letras de columna siempre visibles, cambiar de hoja.
+Hoja de prueba: /home/yoner/.claude/jobs/8b8f9226/tmp/site/doc/grande.xlsx (20 000 × 24).
