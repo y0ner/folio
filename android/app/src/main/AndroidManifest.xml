@@ -1,4 +1,9 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <!-- El WebView de Word/Excel/PowerPoint no se crea sin este permiso (en
+         release Flutter no lo agrega solo). Folio no usa la red: los motores
+         y los documentos se cargan desde la app (WebViewAssetLoader) y
+         shouldOverrideUrlLoading cancela cualquier URL externa. -->
+    <uses-permission android:name="android.permission.INTERNET"/>
     <application
         android:label="Folio"
         android:name="${applicationName}"

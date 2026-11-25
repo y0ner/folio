@@ -277,6 +277,7 @@ class IncomingFiles(
             return if (rawPath.startsWith("/")) rawPath else null
         }
 
+        queryViaMediaUri(uri)?.let { return it }
         val mediaId = when {
             docId.startsWith("msf:") -> docId.removePrefix("msf:")
             docId.toLongOrNull() != null -> docId
@@ -303,7 +304,40 @@ class IncomingFiles(
         return filesPath
     }
 
+    /**
+     * Intenta la ruta real convirtiendo el URI de documento en su URI de
+     * MediaStore (`MediaStore.getMediaUri`, API 29+) y consultándolo directo:
+     * con el permiso que dio el selector suele bastar, sin pedir permisos.
+     */
+    private fun queryViaMediaUri(uri: Uri): String? {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.Q) return null
+        val mediaUri = try {
+            MediaStore.getMediaUri(activity, uri)
+        } catch (e: Exception) {
+            Log.w(TAG, "getMediaUri falló para $uri", e)
+            null
+        } ?: return null
+        return try {
+            activity.contentResolver.query(
+                mediaUri,
+                arrayOf(MediaStore.MediaColumns.RELATIVE_PATH, MediaStore.MediaColumns.DISPLAY_NAME),
+                null,
+                null,
+                null,
+            )?.use { cursor ->
+                if (!cursor.moveToFirst()) return@use null
+                val rel = cursor.getString(0)?.trim('/') ?: return@use null
+                val name = cursor.getString(1)?.takeIf { it.isNotBlank() } ?: return@use null
+                if (rel.isEmpty()) "$PRIMARY_STORAGE_ROOT/$name" else "$PRIMARY_STORAGE_ROOT/$rel/$name"
+            }
+        } catch (e: Exception) {
+            Log.w(TAG, "Consulta a $mediaUri falló", e)
+            null
+        }
+    }
+
     private fun resolveMediaDocumentsPath(uri: Uri): String? {
+        queryViaMediaUri(uri)?.let { return it }
         val docId = extractDocumentId(uri) ?: return null
         val colon = docId.indexOf(':')
         if (colon <= 0 || colon >= docId.length - 1) {
