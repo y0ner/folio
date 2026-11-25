@@ -1,0 +1,23 @@
+Folio es un visor minimalista de solo lectura para Android. Abre archivos PDF, Word, Excel y PowerPoint completamente sin conexión, con una interfaz sobria de «tinta y papel» donde el protagonista es el documento.
+
+Formatos compatibles:
+- PDF (.pdf)
+- Word (.docx, .docm, .dotx)
+- Excel (.xlsx, .xlsm, .xls, .csv)
+- PowerPoint (.pptx, .ppsx, .pptm)
+
+Nota: los formatos binarios antiguos (.doc y .ppt) no están admitidos.
+
+Funciones principales:
+- Visor PDF nativo con PDFium: zoom con pellizco y doble toque, selección de texto, enlaces internos, archivos con contraseña y búsqueda dentro del PDF con resaltado y contador.
+- Visor Word con fuentes empaquetadas compatibles con Calibri, Cambria, Arial y Times.
+- Visor Excel con encabezados fijos, celdas combinadas, pestañas de hojas y desplazamiento fluido hasta 20 000 filas.
+- Visor PowerPoint en lista de diapositivas a lo ancho con carga progresiva.
+- Modo inmersivo (un toque oculta o muestra las barras), indicador flotante de página e Ir a página.
+- Recientes agrupados en Hoy, Esta semana y Anteriores, con búsqueda sin distinción de tildes ni mayúsculas y filtros por tipo.
+- Apertura desde el selector del sistema o desde «Abrir con» / «Compartir», y configuración como visor predeterminado por formato en Ajustes.
+- Información del archivo con su ruta real y «Copiar ruta», «Guardar una copia…» y compartir.
+- Tema claro, oscuro o del sistema.
+
+100 % sin conexión y privado:
+Folio no usa la red, no tiene anuncios ni recopila datos. El permiso INTERNET solo se declara porque el WebView de Android lo exige para crearse al mostrar documentos Office; cualquier URL externa se bloquea.
