@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 
@@ -46,6 +47,11 @@ class _OfficeDocumentViewState extends State<OfficeDocumentView> {
   /// el documento no salte).
   EdgeInsets? _insets;
 
+  /// Si el motor no responde en este tiempo, se muestra un error en vez de
+  /// dejar el indicador girando (p. ej. si el WebView no se pudo crear).
+  static const Duration _watchdogTimeout = Duration(seconds: 45);
+  Timer? _watchdog;
+
   @override
   void initState() {
     super.initState();
@@ -68,6 +74,7 @@ class _OfficeDocumentViewState extends State<OfficeDocumentView> {
     }
 
     _fileExists = File(widget.document.path).existsSync();
+    if (_fileExists) _startWatchdog();
     if (!_fileExists) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (!mounted) return;
@@ -93,8 +100,23 @@ class _OfficeDocumentViewState extends State<OfficeDocumentView> {
     }
   }
 
+  void _startWatchdog() {
+    _watchdog?.cancel();
+    _watchdog = Timer(_watchdogTimeout, () {
+      if (!mounted || widget.controller.status != ViewerStatus.loading) return;
+      debugPrint('OfficeDocumentView: el motor no respondió a tiempo');
+      widget.controller.fail(
+        const ViewerFailure(
+          ViewerFailureKind.engine,
+          detail: 'El motor no respondió a tiempo',
+        ),
+      );
+    });
+  }
+
   @override
   void dispose() {
+    _watchdog?.cancel();
     widget.controller.attach();
     _webController = null;
     super.dispose();
@@ -203,6 +225,19 @@ class _OfficeDocumentViewState extends State<OfficeDocumentView> {
           final css = documentInsetsJs(insets);
           webController.evaluateJavascript(
             source: '$css window.folio && folio.init($payload)',
+          );
+        },
+        onRenderProcessGone: (webController, detail) {
+          if (!mounted) return;
+          debugPrint(
+            'OfficeDocumentView: el proceso del WebView terminó '
+            '(crash: ${detail.didCrash})',
+          );
+          widget.controller.fail(
+            ViewerFailure(
+              ViewerFailureKind.engine,
+              detail: 'Proceso del WebView terminado (crash: ${detail.didCrash})',
+            ),
           );
         },
         onReceivedError: (webController, request, error) {
