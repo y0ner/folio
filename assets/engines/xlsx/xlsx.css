@@ -1,12 +1,34 @@
+/* El viewport fijo evita que los motores móviles expandan el layout viewport
+   al ancho de la tabla, lo que rompía position: sticky vertical en thead. */
+html,
+body {
+  width: 100%;
+  height: 100%;
+  padding: 0;
+  overflow: hidden;
+}
+
 .viewer {
+  position: fixed;
+  inset: 0;
+  overflow: auto;
+  -webkit-overflow-scrolling: touch;
+  background-color: var(--canvas);
+}
+
+.sheet-stage {
+  display: block;
+  width: max-content;
+  min-width: 100%;
+  padding: calc(var(--inset-top, 0px) + 12px) 12px
+    calc(var(--inset-bottom, 0px) + 12px) 12px;
+}
+
+.sheet-stage--empty {
   display: flex;
   flex-direction: column;
-  align-items: flex-start;
-  min-width: 100%;
-  width: max-content;
-  min-height: 100vh;
-  padding: 12px;
-  background-color: var(--canvas);
+  width: 100%;
+  min-height: 100%;
 }
 
 .sheet-paper {
